@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChatBubbleLeftRightIcon, PaperAirplaneIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import API_BASE_URL from '../config';
 
 const CommentSection = ({ requestId, userName, userRole }) => {
   const [comments, setComments] = useState([]);
@@ -9,8 +10,7 @@ const CommentSection = ({ requestId, userName, userRole }) => {
 
   const fetchComments = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests/${requestId}/comments`);
+      const res = await fetch(`${API_BASE_URL}/api/requests/${requestId}/comments`);
       const data = await res.json();
       setComments(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -31,8 +31,7 @@ const CommentSection = ({ requestId, userName, userRole }) => {
 
     setIsLoading(true);
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests/${requestId}/comments`, {
+      const res = await fetch(`${API_BASE_URL}/api/requests/${requestId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

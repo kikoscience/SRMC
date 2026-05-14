@@ -20,6 +20,7 @@ import { HandThumbUpIcon } from '@heroicons/react/24/solid';
 import { motion, AnimatePresence } from 'framer-motion';
 import CommentSection from './CommentSection';
 import PrintableRequest from './PrintableRequest';
+import API_BASE_URL from '../config';
 
 const RequesterDashboard = ({ notify, onPrint }) => {
   const [showForm, setShowForm] = useState(false);
@@ -44,8 +45,7 @@ const RequesterDashboard = ({ notify, onPrint }) => {
 
   const fetchRequests = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests`);
+      const res = await fetch(`${API_BASE_URL}/api/requests`);
       const data = await res.json();
       setRequests(data.map(r => ({
         ...r,
@@ -71,8 +71,7 @@ const RequesterDashboard = ({ notify, onPrint }) => {
     }
     setIsSubmitting(true);
     try {
-      const host = window.location.hostname || 'localhost';
-      const url = `http://${host}:5001/api/requests`;
+      const url = `${API_BASE_URL}/api/requests`;
       
       const formData = new FormData();
       formData.append('title', title);
@@ -733,10 +732,10 @@ const RequesterDashboard = ({ notify, onPrint }) => {
                       {selectedRequest.completion_attachment_url && (
                         <div className="mt-4 group relative inline-block">
                            <img 
-                              src={`http://${window.location.hostname || 'localhost'}:5001${selectedRequest.completion_attachment_url}`} 
+                              src={`${API_BASE_URL}${selectedRequest.completion_attachment_url}`} 
                               alt="Proof of Work"
                               className="w-48 h-32 object-cover rounded-xl border border-white/10 hover:border-green-500/50 transition-all cursor-pointer shadow-lg"
-                              onClick={() => window.open(`http://${window.location.hostname || 'localhost'}:5001${selectedRequest.completion_attachment_url}`, '_blank')}
+                              onClick={() => window.open(`${API_BASE_URL}${selectedRequest.completion_attachment_url}`, '_blank')}
                            />
                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl pointer-events-none">
                               <span className="text-[8px] font-black uppercase tracking-widest text-white">View Full Res</span>

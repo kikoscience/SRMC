@@ -14,6 +14,7 @@ import {
   SpeakerWaveIcon
 } from '@heroicons/react/24/solid';
 import CommentSection from './CommentSection';
+import API_BASE_URL from '../config';
 
 const PublicPortal = ({ type }) => {
   const [requests, setRequests] = useState([]);
@@ -28,8 +29,7 @@ const PublicPortal = ({ type }) => {
 
   const fetchAllRequests = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests?provider_type=${type}`);
+      const res = await fetch(`${API_BASE_URL}/api/requests?provider_type=${type}`);
       const data = await res.json();
       setRequests(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -39,8 +39,7 @@ const PublicPortal = ({ type }) => {
 
   const handleFollowUp = async (id) => {
     try {
-      const host = window.location.hostname || 'localhost';
-      await fetch(`http://${host}:5001/api/requests/${id}/nudge`, { method: 'POST' });
+      await fetch(`${API_BASE_URL}/api/requests/${id}/nudge`, { method: 'POST' });
       fetchAllRequests();
     } catch (err) {
       console.error('Follow-up error:', err);
@@ -49,8 +48,7 @@ const PublicPortal = ({ type }) => {
 
   const resetFollowUp = async (id) => {
     try {
-      const host = window.location.hostname || 'localhost';
-      await fetch(`http://${host}:5001/api/requests/${id}/nudge/reset`, { method: 'POST' });
+      await fetch(`${API_BASE_URL}/api/requests/${id}/nudge/reset`, { method: 'POST' });
       fetchAllRequests();
     } catch (err) {
       console.error('Reset follow-up error:', err);
@@ -59,8 +57,7 @@ const PublicPortal = ({ type }) => {
 
   const fetchReminders = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/reminders?provider_type=${type}`);
+      const res = await fetch(`${API_BASE_URL}/api/reminders?provider_type=${type}`);
       const data = await res.json();
       setReminders(Array.isArray(data) ? data : []);
     } catch (err) {

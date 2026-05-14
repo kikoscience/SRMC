@@ -17,6 +17,7 @@ import StaffDashboard from './components/StaffDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import PublicPortal from './components/PublicPortal';
 import PrintableRequest from './components/PrintableRequest';
+import API_BASE_URL from './config';
 
 const App = () => {
   const [role, setRole] = useState(null);
@@ -27,8 +28,7 @@ const App = () => {
   const [printContext, setPrintContext] = useState(null); // { request, logs, parts }
 
   React.useEffect(() => {
-    const host = window.location.hostname || 'localhost';
-    fetch(`http://${host}:5001/api/staff`)
+    fetch(`${API_BASE_URL}/api/staff`)
       .then(res => res.json())
       .then(data => setStaffList(Array.isArray(data) ? data : []))
       .catch(err => console.error('Staff fetch error:', err));

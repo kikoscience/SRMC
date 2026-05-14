@@ -7,6 +7,7 @@ import {
   CircleStackIcon,
   ClockIcon
 } from '@heroicons/react/24/outline';
+import API_BASE_URL from '../config';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -15,10 +16,9 @@ const AdminDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
       const [statsRes, auditRes] = await Promise.all([
-        fetch(`http://${host}:5001/api/admin/stats`),
-        fetch(`http://${host}:5001/api/admin/audit`)
+        fetch(`${API_BASE_URL}/api/admin/stats`),
+        fetch(`${API_BASE_URL}/api/admin/audit`)
       ]);
       const [statsData, auditData] = await Promise.all([statsRes.json(), auditRes.json()]);
       setStats(statsData);
@@ -47,9 +47,28 @@ const AdminDashboard = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
+      {/* Real-time Status Header */}
+      <div className="flex justify-between items-end mb-4 px-2">
+        <div>
+          <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white">System <span className="text-it-cyan">Integrity</span></h2>
+          <p className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-black mt-1">Live NOC Feed | Data Refreshing every 10s</p>
+        </div>
+        <div className="flex items-center gap-6">
+          <div className="text-right">
+            <p className="text-[8px] font-black text-white/30 uppercase tracking-widest mb-1">Gateway</p>
+            <span className="text-[10px] font-mono text-green-500">10.0.1.90:5001</span>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center relative">
+            <div className="absolute inset-0 bg-it-cyan/20 rounded-2xl animate-ping scale-75" />
+            <BoltIcon className="w-5 h-5 text-it-cyan relative z-10" />
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {metrics.map((m) => (
-          <div key={m.label} className="glass-card p-6 border-white/5 group hover:border-it-cyan/30 transition-all">
+          <div key={m.label} className="glass-card p-6 border-white/5 group hover:border-it-cyan/30 transition-all relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full blur-3xl -mr-12 -mt-12 group-hover:bg-it-cyan/10 transition-colors" />
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-it-cyan/10 rounded-lg text-it-cyan group-hover:scale-110 transition-transform">
                 <m.icon className="w-6 h-6" />
@@ -58,39 +77,46 @@ const AdminDashboard = () => {
                 {m.change}
               </span>
             </div>
-            <h4 className="text-white/40 text-xs uppercase tracking-widest mb-1">{m.label}</h4>
-            <span className="text-3xl font-black italic">{m.value}</span>
+            <div>
+              <p className="text-3xl font-black text-white group-hover:text-it-cyan transition-colors">{m.value}</p>
+              <p className="text-[10px] text-white/20 font-black uppercase tracking-widest mt-1">{m.label}</p>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-12 gap-8">
-        <div className="col-span-12 lg:col-span-8 glass-card overflow-hidden border-white/5">
-          <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
-            <div>
-              <h3 className="text-lg font-bold uppercase tracking-tight">Global System Audit</h3>
-              <p className="text-[10px] text-white/20 uppercase font-black tracking-widest mt-1">Cross-Department Operational Stream</p>
-            </div>
-            <button className="px-4 py-2 bg-white/5 hover:bg-it-cyan hover:text-black rounded-lg text-[10px] font-black uppercase transition-all">Export System Logs</button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex items-center justify-between px-2">
+             <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white/40">Audit Trail <span className="text-it-cyan/30">| Recent Operations</span></h3>
+             <button onClick={fetchData} className="text-[10px] text-it-cyan font-black uppercase tracking-widest hover:underline">Force Sync</button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-white/[0.02] text-[10px] uppercase tracking-widest text-white/40 border-b border-white/5">
+          <div className="glass-card overflow-hidden border-white/5">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-white/[0.02]">
                 <tr>
-                  <th className="px-6 py-4">Timestamp</th>
-                  <th className="px-6 py-4">Technician</th>
-                  <th className="px-6 py-4">Tracking No</th>
-                  <th className="px-6 py-4">Action Taken</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/30">Timestamp</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/30">Reference</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/30">Operator</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/30">Activity</th>
                 </tr>
               </thead>
-              <tbody className="text-sm divide-y divide-white/5">
-                {auditLogs.map((row, i) => (
-                  <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
-                    <td className="px-6 py-4 font-mono text-white/40 text-xs">{new Date(row.created_at).toLocaleTimeString()}</td>
-                    <td className="px-6 py-4 font-bold">{row.first_name} {row.last_name}</td>
-                    <td className="px-6 py-4 text-it-cyan font-mono text-xs">{row.tracking_no}</td>
+              <tbody className="divide-y divide-white/5">
+                {auditLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
                     <td className="px-6 py-4">
-                      <span className="text-white/60 italic">"{row.entry || row.notes}"</span>
+                      <p className="text-xs text-white/60">{new Date(log.created_at).toLocaleDateString()}</p>
+                      <p className="text-[10px] text-white/20 font-mono">{new Date(log.created_at).toLocaleTimeString()}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-1 bg-white/5 rounded text-[10px] font-mono text-it-cyan border border-white/10">{log.tracking_no}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-xs font-bold text-white/80">{log.first_name} {log.last_name}</p>
+                      <p className="text-[10px] text-white/20 uppercase tracking-widest font-black">Staff Unit</p>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-white/40 group-hover:text-white/80 transition-colors">
+                      {log.notes}
                     </td>
                   </tr>
                 ))}
@@ -99,30 +125,47 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        <div className="col-span-12 lg:col-span-4 space-y-6">
-          <div className="glass-card p-6 border-white/5">
-            <h3 className="text-lg mb-6 flex items-center gap-2 font-bold uppercase">
-              <AdjustmentsHorizontalIcon className="w-5 h-5 text-it-cyan" />
-              System Config
-            </h3>
-            <div className="space-y-3">
-              <button className="w-full p-4 rounded-xl bg-white/5 border border-white/5 text-left text-xs font-bold uppercase tracking-widest hover:border-it-cyan/30 transition-all flex justify-between items-center group">
-                Manage Departments
-                <div className="w-2 h-2 rounded-full bg-it-cyan opacity-20 group-hover:opacity-100" />
-              </button>
-              <button className="w-full p-4 rounded-xl bg-white/5 border border-white/5 text-left text-xs font-bold uppercase tracking-widest hover:border-it-cyan/30 transition-all flex justify-between items-center group">
-                SLA Thresholds
-                <div className="w-2 h-2 rounded-full bg-it-cyan opacity-20 group-hover:opacity-100" />
-              </button>
-              <button className="w-full p-4 rounded-xl bg-white/5 border border-white/5 text-left text-xs font-bold uppercase tracking-widest hover:border-it-cyan/30 transition-all flex justify-between items-center group">
-                Staff Permissions
-                <div className="w-2 h-2 rounded-full bg-it-cyan opacity-20 group-hover:opacity-100" />
-              </button>
-              <button className="w-full p-4 rounded-xl bg-white/5 border border-white/5 text-left text-xs font-bold uppercase tracking-widest hover:border-red-500/30 transition-all flex justify-between items-center group">
-                Backup Database
-                <div className="w-2 h-2 rounded-full bg-red-500 opacity-20 group-hover:opacity-100 animate-pulse" />
-              </button>
+        <div className="space-y-6">
+          <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white/40 px-2">Network Grid</h3>
+          <div className="glass-card p-8 border-white/5">
+            <div className="grid grid-cols-6 gap-3">
+              {[...Array(24)].map((_, i) => (
+                <div 
+                  key={i} 
+                  className={`aspect-square rounded-md border flex items-center justify-center transition-all duration-1000 ${
+                    i % 7 === 0 ? 'bg-red-500/20 border-red-500/30' : 
+                    i % 3 === 0 ? 'bg-yellow-500/10 border-yellow-500/20' : 
+                    'bg-it-cyan/10 border-it-cyan/20'
+                  }`}
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full ${
+                    i % 7 === 0 ? 'bg-red-500 animate-pulse' : 
+                    i % 3 === 0 ? 'bg-yellow-500' : 
+                    'bg-it-cyan'
+                  }`} />
+                </div>
+              ))}
             </div>
+            <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
+              <div className="flex justify-between items-center">
+                 <span className="text-[10px] text-white/20 uppercase font-black tracking-widest">Database Latency</span>
+                 <span className="text-[10px] font-mono text-green-500">12ms</span>
+              </div>
+              <div className="flex justify-between items-center">
+                 <span className="text-[10px] text-white/20 uppercase font-black tracking-widest">Active Threads</span>
+                 <span className="text-[10px] font-mono text-it-cyan">14 active</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-8 border-eng-orange/10 bg-eng-orange/[0.02]">
+             <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-full bg-eng-orange/10 flex items-center justify-center">
+                   <ServerIcon className="w-4 h-4 text-eng-orange" />
+                </div>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-white">System Logs</h4>
+             </div>
+             <p className="text-xs text-white/40 leading-relaxed">System logs are being streamed to the primary NOC terminal. Ensure all primary gateways are within SLA parameters.</p>
           </div>
         </div>
       </div>

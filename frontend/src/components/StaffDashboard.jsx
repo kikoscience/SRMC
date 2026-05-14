@@ -18,6 +18,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import CommentSection from './CommentSection';
 import { getPriorityStyles, getTimeToBreach, getStatusColor } from '../utils/statusHelper';
+import API_BASE_URL from '../config';
 
 const StaffDashboard = ({ user, notify }) => {
   const [activeJob, setActiveJob] = useState(null);
@@ -36,6 +37,8 @@ const StaffDashboard = ({ user, notify }) => {
   const [isLogging, setIsLogging] = useState(false);
   const [showHints, setShowHints] = useState(true);
   const [completionPhoto, setCompletionPhoto] = useState(null);
+  const [assetHistory, setAssetHistory] = useState(null);
+  const [isSearchingHistory, setIsSearchingHistory] = useState(false);
 
   const steps = [
     { id: 1, name: 'Job Accepted', desc: 'Confirm you are heading to the site' },
@@ -47,8 +50,7 @@ const StaffDashboard = ({ user, notify }) => {
 
   const fetchParts = async (reqId) => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests/${reqId}/parts`);
+      const res = await fetch(`${API_BASE_URL}/api/requests/${reqId}/parts`);
       const data = await res.json();
       setPartsList(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -58,12 +60,35 @@ const StaffDashboard = ({ user, notify }) => {
 
   const fetchLogs = async (reqId) => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests/${reqId}/logs`);
+      const res = await fetch(`${API_BASE_URL}/api/requests/${reqId}/logs`);
       const data = await res.json();
       setLogs(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Fetch logs error:', err);
+    }
+  };
+
+  const fetchAsset = async (reqId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/requests/${reqId}/asset`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setAssetData({
+            name: data.name || '',
+            model: data.model || '',
+            serialNo: data.serial_no || '',
+            propertyNo: data.property_no || '',
+            locationTag: data.location || ''
+          });
+          setIsAssetSaved(true);
+        } else {
+          setAssetData({ name: '', model: '', serialNo: '', propertyNo: '', locationTag: '' });
+          setIsAssetSaved(false);
+        }
+      }
+    } catch (err) {
+      console.error('Fetch asset error:', err);
     }
   };
 
@@ -80,25 +105,23 @@ const StaffDashboard = ({ user, notify }) => {
 
   const handleSaveQueue = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
       for (const part of stagedParts) {
-        await fetch(`http://${host}:5001/api/requests/${activeJob.id}/parts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        await fetch(`${API_BASE_URL}/api/requests/${activeJob.id}/parts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ part_name: part.name, serial_no: part.sn })
         });
       }
       setStagedParts([]);
       fetchParts(activeJob.id);
     } catch (err) {
-      console.error('Save queue error:', err);
+      console.error("Save queue error:", err);
     }
   };
 
   const handleDeletePart = async (partId) => {
     try {
-      const host = window.location.hostname || 'localhost';
-      await fetch(`http://${host}:5001/api/requests/${activeJob.id}/parts/${partId}`, {
+      await fetch(`${API_BASE_URL}/api/requests/${activeJob.id}/parts/${partId}`, {
         method: 'DELETE'
       });
       fetchParts(activeJob.id);
@@ -111,8 +134,7 @@ const StaffDashboard = ({ user, notify }) => {
     if (!technicalNotes.trim()) return;
     setIsLogging(true);
     try {
-      const host = window.location.hostname || 'localhost';
-      await fetch(`http://${host}:5001/api/requests/${activeJob.id}/logs`, {
+      await fetch(`${API_BASE_URL}/api/requests/${activeJob.id}/logs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ staff_id: user.id, notes: technicalNotes })
@@ -128,8 +150,7 @@ const StaffDashboard = ({ user, notify }) => {
 
   const fetchJobs = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests?staff_id=${user?.id}`);
+      const res = await fetch(`${API_BASE_URL}/api/requests?staff_id=${user?.id}`);
       const data = await res.json();
       const activeJobs = Array.isArray(data) ? data.filter(r => r.status === 'Assigned') : [];
       setMyJobs(activeJobs);
@@ -145,12 +166,45 @@ const StaffDashboard = ({ user, notify }) => {
     }
   };
 
+  const handleAssetLookup = async () => {
+    const searchVal = assetData.propertyNo || assetData.serialNo;
+    if (!searchVal) {
+      notify('Enter Property No or Serial No first', 'error');
+      return;
+    }
+
+    setIsSearchingHistory(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/equipment/search?query=${searchVal}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAssetHistory(data);
+        // Auto-fill metadata if found and current is empty
+        setAssetData({
+          name: assetData.name || data.equipment.name,
+          model: assetData.model || data.equipment.model,
+          serialNo: assetData.serialNo || data.equipment.serial_no,
+          propertyNo: assetData.propertyNo || data.equipment.property_no,
+          locationTag: assetData.locationTag || data.equipment.location
+        });
+        notify('Asset history retrieved');
+      } else {
+        notify('No existing record found for this asset');
+        setAssetHistory(null);
+      }
+    } catch (err) {
+      console.error('Lookup error:', err);
+      notify('Lookup failed', 'error');
+    } finally {
+      setIsSearchingHistory(false);
+    }
+  };
+
   const [isNudged, setIsNudged] = useState(false);
 
   const handleTagAsset = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      await fetch(`http://${host}:5001/api/requests/${activeJob.id}/tag`, {
+      await fetch(`${API_BASE_URL}/api/requests/${activeJob.id}/tag`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -168,17 +222,15 @@ const StaffDashboard = ({ user, notify }) => {
 
   const handleFinalizeJob = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      
       if (finalReport.trim()) {
-        await fetch(`http://${host}:5001/api/requests/${activeJob.id}/logs`, {
+        await fetch(`${API_BASE_URL}/api/requests/${activeJob.id}/logs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ staff_id: user.id, notes: `FINAL REPORT: ${finalReport}` })
         });
       }
 
-      await fetch(`http://${host}:5001/api/requests/${activeJob.id}/step`, {
+      await fetch(`${API_BASE_URL}/api/requests/${activeJob.id}/step`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ step: 5, notes: finalReport })
@@ -189,7 +241,7 @@ const StaffDashboard = ({ user, notify }) => {
         formData.append('completion_image', completionPhoto);
       }
 
-      const res = await fetch(`http://${host}:5001/api/requests/${activeJob.id}/complete`, {
+      const res = await fetch(`${API_BASE_URL}/api/requests/${activeJob.id}/complete`, {
         method: 'PUT',
         body: formData
       });
@@ -215,8 +267,7 @@ const StaffDashboard = ({ user, notify }) => {
 
   const handleSaveStep = async (nextStep) => {
     try {
-      const host = window.location.hostname || 'localhost';
-      await fetch(`http://${host}:5001/api/requests/${activeJob.id}/step`, {
+      await fetch(`${API_BASE_URL}/api/requests/${activeJob.id}/step`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ step: nextStep, notes: technicalNotes })
@@ -234,9 +285,12 @@ const StaffDashboard = ({ user, notify }) => {
 
   React.useEffect(() => {
     if (activeJob) {
-      setTechnicalNotes(''); // Reset input for new log entry
+      setTechnicalNotes(''); 
+      setAssetHistory(null);
+      setIsAssetEditing(false);
       fetchLogs(activeJob.id);
       fetchParts(activeJob.id);
+      fetchAsset(activeJob.id);
     }
   }, [activeJob?.id]);
 
@@ -415,19 +469,28 @@ const StaffDashboard = ({ user, notify }) => {
                           </h5>
                         </div>
                         {!isAssetSaved || isAssetEditing ? (
-                          <button 
-                            onClick={async () => {
-                              if (assetData.propertyNo) {
-                                await handleTagAsset();
-                                setIsAssetSaved(true);
-                                setIsAssetEditing(false);
-                              }
-                            }}
-                            disabled={!assetData.propertyNo}
-                            className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 bg-it-cyan text-black rounded hover:bg-white transition-colors disabled:opacity-30"
-                          >
-                            Save Asset
-                          </button>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={handleAssetLookup}
+                              disabled={isSearchingHistory || (!assetData.propertyNo && !assetData.serialNo)}
+                              className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 bg-white/5 text-it-cyan rounded hover:bg-it-cyan hover:text-black transition-colors"
+                            >
+                              {isSearchingHistory ? 'Searching...' : 'Lookup History'}
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                if (assetData.propertyNo) {
+                                  await handleTagAsset();
+                                  setIsAssetSaved(true);
+                                  setIsAssetEditing(false);
+                                }
+                              }}
+                              disabled={!assetData.propertyNo}
+                              className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 bg-it-cyan text-black rounded hover:bg-white transition-colors disabled:opacity-30"
+                            >
+                              Save Asset
+                            </button>
+                          </div>
                         ) : (
                           <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-green-400">
                             <CheckCircleIcon className="w-3 h-3" /> Locked
@@ -477,6 +540,45 @@ const StaffDashboard = ({ user, notify }) => {
                         </div>
                       </div>
                     </div>
+
+                    {/* Asset History Display */}
+                    <AnimatePresence>
+                      {assetHistory && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="bg-it-cyan/5 border border-it-cyan/20 rounded-2xl p-6 mb-8 overflow-hidden"
+                        >
+                          <div className="flex justify-between items-center mb-4">
+                            <h5 className="text-[10px] uppercase tracking-widest text-it-cyan font-black flex items-center gap-2">
+                              <ArchiveBoxIcon className="w-4 h-4" /> Lifetime Repair History
+                            </h5>
+                            <button onClick={() => setAssetHistory(null)} className="text-[10px] text-white/40 hover:text-white uppercase tracking-widest">Close History</button>
+                          </div>
+                          
+                          {assetHistory.history.length === 0 ? (
+                            <p className="text-xs text-white/40 italic">Found asset record but no technical logs exist.</p>
+                          ) : (
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                              {assetHistory.history.map((h, i) => (
+                                <div key={i} className="p-4 rounded-xl bg-black/40 border border-white/5 relative">
+                                  <div className="flex justify-between items-start mb-2">
+                                    <span className="text-[8px] font-mono text-it-cyan bg-it-cyan/10 px-2 py-0.5 rounded">{h.tracking_no}</span>
+                                    <span className="text-[8px] text-white/20 uppercase tracking-widest font-black">{new Date(h.created_at).toLocaleDateString()}</span>
+                                  </div>
+                                  <p className="text-[10px] text-white/60 leading-relaxed">{h.notes}</p>
+                                  <div className="mt-2 pt-2 border-t border-white/5 flex justify-between items-center">
+                                    <span className="text-[8px] text-white/20 italic">Technician: {h.staff_name || 'System'}</span>
+                                    <span className="text-[8px] text-it-cyan/60 uppercase font-black">{h.title}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                     {/* Log History */}
                     {logs.length > 0 && (

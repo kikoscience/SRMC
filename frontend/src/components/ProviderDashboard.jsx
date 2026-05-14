@@ -35,6 +35,7 @@ import ProviderStaffView from './ProviderStaffView';
 import CommentSection from './CommentSection';
 import PrintableRequest from './PrintableRequest';
 import { getPriorityStyles, getTimeToBreach, getStatusColor } from '../utils/statusHelper';
+import API_BASE_URL from '../config';
 
 const ProviderDashboard = ({ type, notify, onPrint }) => {
   const [activeTab, setActiveTab] = useState('review');
@@ -72,16 +73,47 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('All');
+  const [selectedAssetForHistory, setSelectedAssetForHistory] = useState(null);
+  const [assetHistoryLogs, setAssetHistoryLogs] = useState([]);
+  const [isLoadingAssetHistory, setIsLoadingAssetHistory] = useState(false);
+  const [isAssetHistoryModalOpen, setIsAssetHistoryModalOpen] = useState(false);
   const itemsPerPage = 10;
 
   const fetchGlobalLogs = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/logs`);
+      const res = await fetch(`${API_BASE_URL}/api/logs`);
       const data = await res.json();
       setGlobalLogs(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Fetch global logs error:', err);
+    }
+  };
+
+  const fetchEquipment = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/equipment`);
+      const data = await res.json();
+      setEquipment(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Fetch equipment error:', err);
+    }
+  };
+
+  const fetchAssetHistoryForProvider = async (asset) => {
+    setSelectedAssetForHistory(asset);
+    setIsLoadingAssetHistory(true);
+    setIsAssetHistoryModalOpen(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/equipment/${asset.id}/history`);
+      if (res.ok) {
+        const data = await res.json();
+        setAssetHistoryLogs(data);
+      }
+    } catch (err) {
+      console.error('Fetch asset history error:', err);
+      notify('Failed to load asset history', 'error');
+    } finally {
+      setIsLoadingAssetHistory(false);
     }
   };
 
@@ -95,8 +127,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
 
   const fetchRequests = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests?provider_type=${type}`);
+      const res = await fetch(`${API_BASE_URL}/api/requests?provider_type=${type}`);
       const data = await res.json();
       setRequests(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -107,8 +138,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
 
   const fetchReminders = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/reminders?provider_type=${type}`);
+      const res = await fetch(`${API_BASE_URL}/api/reminders?provider_type=${type}`);
       const data = await res.json();
       setReminders(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -119,8 +149,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
   const handleAddReminder = async () => {
     if (!newReminder.trim()) return;
     try {
-      const host = window.location.hostname || 'localhost';
-      await fetch(`http://${host}:5001/api/reminders`, {
+      await fetch(`${API_BASE_URL}/api/reminders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: newReminder, provider_type: type })
@@ -135,8 +164,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
 
   const handleDeleteReminder = async (id) => {
     try {
-      const host = window.location.hostname || 'localhost';
-      await fetch(`http://${host}:5001/api/reminders/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE_URL}/api/reminders/${id}`, { method: 'DELETE' });
       fetchReminders();
     } catch (err) {
       console.error('Delete reminder error:', err);
@@ -145,8 +173,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
 
   const fetchStaff = async () => {
     try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/staff?provider_type=${type}`);
+      const res = await fetch(`${API_BASE_URL}/api/staff?provider_type=${type}`);
       const data = await res.json();
       setStaff(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -158,7 +185,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
   const fetchAnalytics = async () => {
     try {
       const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/analytics/staff?provider_type=${type}`);
+      const res = await fetch(`${API_BASE_URL}/api/analytics/staff?provider_type=${type}`);
       const data = await res.json();
       setStaffAnalytics(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -175,7 +202,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
     setIsSubmitting(true);
     try {
       const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/staff`, {
+      const res = await fetch(`${API_BASE_URL}/api/staff`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -206,7 +233,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
   const handleToggleStatus = async (staffId) => {
     try {
       const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/staff/${staffId}/toggle`, {
+      const res = await fetch(`${API_BASE_URL}/api/staff/${staffId}/toggle`, {
         method: 'PUT'
       });
       if (res.ok) {
@@ -221,9 +248,9 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
     try {
       const host = window.location.hostname || 'localhost';
       // Fetch logs and parts for the print form
-      const logsRes = await fetch(`http://${host}:5001/api/requests/${req.id}/logs`);
+      const logsRes = await fetch(`${API_BASE_URL}/api/requests/${req.id}/logs`);
       const logsData = await logsRes.json();
-      const partsRes = await fetch(`http://${host}:5001/api/requests/${req.id}/parts`);
+      const partsRes = await fetch(`${API_BASE_URL}/api/requests/${req.id}/parts`);
       const partsData = await partsRes.json();
       
       setPrintingLogs(logsData);
@@ -249,7 +276,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
     setIsSubmitting(true);
     try {
       const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests/${reqId}/dispatch`, {
+      const res = await fetch(`${API_BASE_URL}/api/requests/${reqId}/dispatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ staff_ids: staffIds })
@@ -274,7 +301,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
     setIsSubmitting(true);
     try {
       const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests/${reqId}/step`, {
+      const res = await fetch(`${API_BASE_URL}/api/requests/${reqId}/step`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ step: nextStep })
@@ -296,7 +323,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
     setIsSubmitting(true);
     try {
       const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests/${reqId}/accept`, {
+      const res = await fetch(`${API_BASE_URL}/api/requests/${reqId}/accept`, {
         method: 'POST'
       });
       if (res.ok) {
@@ -324,7 +351,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
     setIsSubmitting(true);
     try {
       const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests/${rejectingId}/reject`, {
+      const res = await fetch(`${API_BASE_URL}/api/requests/${rejectingId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: rejectionReason })
@@ -348,7 +375,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
     setIsSubmitting(true);
     try {
       const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/requests/${targetReq.id}/priority`, {
+      const res = await fetch(`${API_BASE_URL}/api/requests/${targetReq.id}/priority`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -381,10 +408,9 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
   const fetchTechDetails = async (reqId) => {
     setLoadingTech(true);
     try {
-      const host = window.location.hostname || 'localhost';
       const [logsRes, partsRes] = await Promise.all([
-        fetch(`http://${host}:5001/api/requests/${reqId}/logs`),
-        fetch(`http://${host}:5001/api/requests/${reqId}/parts`)
+        fetch(`${API_BASE_URL}/api/requests/${reqId}/logs`),
+        fetch(`${API_BASE_URL}/api/requests/${reqId}/parts`)
       ]);
       const [logs, parts] = await Promise.all([logsRes.json(), partsRes.json()]);
       setTechLogs(Array.isArray(logs) ? logs : []);
@@ -398,8 +424,7 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
 
   const resetNudge = async (reqId) => {
     try {
-      const host = window.location.hostname || 'localhost';
-      await fetch(`http://${host}:5001/api/requests/${reqId}/nudge/reset`, { method: 'POST' });
+      await fetch(`${API_BASE_URL}/api/requests/${reqId}/nudge/reset`, { method: 'POST' });
       fetchRequests(); // Refresh list to remove shaky effect
     } catch (err) {
       console.error('Reset nudge error:', err);
@@ -415,18 +440,6 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
     }
   }, [dispatchingReq, activeTab]);
 
-
-
-  const fetchEquipment = async () => {
-    try {
-      const host = window.location.hostname || 'localhost';
-      const res = await fetch(`http://${host}:5001/api/equipment?provider_type=${type}`);
-      const data = await res.json();
-      setEquipment(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Fetch equipment error:', err);
-    }
-  };
 
   const handleDownloadAssets = () => {
     if (equipment.length === 0) return;
@@ -1263,22 +1276,39 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
 
                   <div className="grid grid-cols-2 gap-4 relative z-10">
                     <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
-                      <div className="flex items-center gap-2 mb-3 opacity-40">
-                        <CalendarIcon className="w-3 h-3" />
-                        <span className="text-[10px] uppercase font-bold tracking-widest">Monthly Load</span>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 opacity-40">
+                          <CalendarIcon className="w-3 h-3" />
+                          <span className="text-[10px] uppercase font-bold tracking-widest">Monthly Load</span>
+                        </div>
+                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${s.monthly_jobs > 15 ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                          {s.monthly_jobs > 15 ? 'HIGH DEMAND' : 'OPTIMAL'}
+                        </span>
                       </div>
                       <p className="text-3xl font-black text-white">{s.monthly_jobs || 0}</p>
                       <div className="w-full h-1 bg-white/5 mt-3 rounded-full overflow-hidden">
                         <div className="h-full bg-it-cyan" style={{ width: `${Math.min((s.monthly_jobs / 20) * 100, 100)}%` }}></div>
                       </div>
                     </div>
+
                     <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
-                      <div className="flex items-center gap-2 mb-3 opacity-40">
-                        <BoltIcon className="w-3 h-3" />
-                        <span className="text-[10px] uppercase font-bold tracking-widest">Total Resolved</span>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 opacity-40">
+                          <ClockIcon className="w-3 h-3" />
+                          <span className="text-[10px] uppercase font-bold tracking-widest">Active Load</span>
+                        </div>
+                        {s.active_load > 0 && (
+                          <div className="flex gap-1">
+                            {[...Array(Math.min(s.active_load, 3))].map((_, i) => (
+                              <div key={i} className="w-1.5 h-1.5 rounded-full bg-it-cyan animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <p className="text-3xl font-black text-white">{s.total_jobs || 0}</p>
-                      <p className="text-[10px] text-white/20 mt-2 uppercase font-bold">Lifetime Experience</p>
+                      <p className="text-3xl font-black text-white">{s.active_load || 0}</p>
+                      <p className={`text-[10px] mt-2 uppercase font-bold ${s.active_load > 2 ? 'text-eng-orange' : 'text-white/20'}`}>
+                        {s.active_load > 2 ? 'Warning: Near Capacity' : 'Available for Dispatch'}
+                      </p>
                     </div>
                   </div>
                 </motion.div>
@@ -1451,8 +1481,158 @@ const ProviderDashboard = ({ type, notify, onPrint }) => {
             </div>
           </div>
         )}
+
+        {activeTab === 'assets' && (
+          <div className="space-y-6">
+            <div className="glass-card p-6 border-it-cyan/10 bg-white/[0.01] flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold uppercase tracking-widest text-it-cyan">Asset Registry</h3>
+                <p className="text-white/20 text-[10px] uppercase tracking-[0.2em] mt-1">Master Inventory & Repair History Tracking</p>
+              </div>
+              <div className="relative w-64">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                <input 
+                  type="text" 
+                  placeholder="Search Registry..." 
+                  className="w-full bg-white/5 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-xs outline-none focus:border-it-cyan/50 transition-all"
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {equipment.filter(e => 
+                e.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                e.property_no?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                e.serial_no?.toLowerCase().includes(searchQuery.toLowerCase())
+              ).length === 0 ? (
+                <div className="col-span-full py-20 text-center glass-card border-dashed border-white/5 text-white/20">
+                  No assets found in registry
+                </div>
+              ) : (
+                equipment.filter(e => 
+                  e.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                  e.property_no?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  e.serial_no?.toLowerCase().includes(searchQuery.toLowerCase())
+                ).map((asset) => (
+                  <motion.div 
+                    key={asset.id}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="glass-card p-6 border-white/5 hover:border-it-cyan/30 transition-all group cursor-pointer"
+                    onClick={() => fetchAssetHistoryForProvider(asset)}
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-it-cyan/10 flex items-center justify-center text-it-cyan group-hover:bg-it-cyan group-hover:text-black transition-all">
+                        <CpuChipIcon className="w-5 h-5" />
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-white/20 uppercase font-black tracking-widest">Last Service</p>
+                        <p className="text-[10px] text-white/60 font-mono">{asset.last_service_at ? new Date(asset.last_service_at).toLocaleDateString() : 'NEVER'}</p>
+                      </div>
+                    </div>
+                    <h4 className="text-lg font-bold mb-1 group-hover:text-it-cyan transition-colors">{asset.name}</h4>
+                    <p className="text-xs text-white/40 mb-4">{asset.model}</p>
+                    
+                    <div className="space-y-2 border-t border-white/5 pt-4">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-white/20 uppercase font-bold tracking-widest">Property No</span>
+                        <span className="text-it-cyan font-mono">{asset.property_no}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-white/20 uppercase font-bold tracking-widest">Serial No</span>
+                        <span className="text-white/60 font-mono">{asset.serial_no}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
+    
+    {/* Asset History Modal */}
+    <AnimatePresence>
+      {isAssetHistoryModalOpen && selectedAssetForHistory && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsAssetHistoryModalOpen(false)}
+            className="absolute inset-0 bg-black/90 backdrop-blur-xl"
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="relative w-full max-w-4xl bg-[#0a0a1a] border border-it-cyan/20 rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(255,255,255,0.1)] flex flex-col max-h-[85vh]"
+          >
+            <div className="p-10 border-b border-white/5 flex justify-between items-start bg-it-cyan/[0.02]">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-[10px] font-mono text-it-cyan bg-it-cyan/10 px-2 py-1 rounded border border-it-cyan/20 uppercase tracking-widest">{selectedAssetForHistory.property_no}</span>
+                  <span className="text-[10px] text-white/20 uppercase tracking-[0.2em] font-black">Lifetime Technical Audit</span>
+                </div>
+                <h3 className="text-4xl font-black italic uppercase tracking-tighter text-white">{selectedAssetForHistory.name}</h3>
+                <p className="text-white/40 text-sm mt-1">{selectedAssetForHistory.model} • {selectedAssetForHistory.location}</p>
+              </div>
+              <button onClick={() => setIsAssetHistoryModalOpen(false)} className="p-4 rounded-2xl bg-white/5 hover:bg-red-500 hover:text-black transition-all">
+                <XCircleIcon className="w-8 h-8" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+              {isLoadingAssetHistory ? (
+                <div className="flex flex-col items-center justify-center h-full py-20 text-it-cyan/20 animate-pulse">
+                  <ArrowPathIcon className="w-12 h-12 animate-spin mb-4" />
+                  <p className="uppercase tracking-[0.3em] text-[10px] font-black">Decrypting Repair Logs...</p>
+                </div>
+              ) : assetHistoryLogs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full py-20 text-white/10 italic">
+                  No technical logs found for this asset in the global ledger.
+                </div>
+              ) : (
+                <div className="space-y-8 relative before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-it-cyan/10">
+                  {assetHistoryLogs.map((log, i) => (
+                    <div key={i} className="relative pl-12 group">
+                      <div className="absolute left-0 top-1 w-10 h-10 rounded-full bg-[#0a0a1a] border-2 border-it-cyan flex items-center justify-center z-10 group-hover:bg-it-cyan transition-all">
+                        <WrenchScrewdriverIcon className="w-4 h-4 text-it-cyan group-hover:text-black transition-all" />
+                      </div>
+                      <div className="glass-card p-6 border-white/5 bg-white/[0.02] hover:border-it-cyan/30 transition-all">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <span className="text-[10px] font-mono text-it-cyan block mb-1">{log.tracking_no}</span>
+                            <h4 className="text-lg font-bold text-white/90">{log.title}</h4>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] text-white/20 uppercase font-black block tracking-widest">{new Date(log.created_at).toLocaleDateString()}</span>
+                            <span className="text-[10px] text-white/20 uppercase font-black block tracking-widest">{new Date(log.created_at).toLocaleTimeString()}</span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-white/60 leading-relaxed italic mb-6">"{log.notes}"</p>
+                        <div className="flex items-center gap-2 pt-4 border-t border-white/5">
+                           <div className="w-6 h-6 rounded-full bg-it-cyan/10 flex items-center justify-center text-[8px] font-black text-it-cyan">
+                              {log.staff_name?.[0] || 'T'}
+                           </div>
+                           <span className="text-[10px] uppercase tracking-widest font-bold text-white/20">Lead Technician: {log.staff_name || 'System Auto-Log'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-8 bg-it-cyan/5 border-t border-it-cyan/10 text-center">
+               <p className="text-[10px] text-it-cyan/40 uppercase tracking-[0.5em] font-black">End of Technical Record</p>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
       <AnimatePresence>
         {showDispatchModal && dispatchingReq && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">

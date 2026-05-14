@@ -36,9 +36,6 @@ const config = {
   },
 };
 
-app.use(cors());
-app.use(express.json());
-
 // Database Initialization with Retries
 const initDb = async () => {
   let authenticated = false;
@@ -396,6 +393,24 @@ app.put('/api/staff/:id/toggle', async (req, res) => {
   }
 });
 
+app.get('/api/requests/:id/asset', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    const result = await pool.request()
+      .input('rid', sql.Int, id)
+      .query(`
+        SELECT e.* 
+        FROM equipment e
+        JOIN request_assets ra ON e.id = ra.equipment_id
+        WHERE ra.request_id = @rid
+      `);
+    res.json(result.recordset[0] || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/requests', async (req, res) => {
   const { provider_type, staff_id } = req.query;
   try {
@@ -437,6 +452,10 @@ app.get('/api/requests', async (req, res) => {
 app.post('/api/requests', upload.single('attachment'), async (req, res) => {
   const { title, description, priority, location, requester_id, provider_type, requested_by } = req.body;
   const attachment_url = req.file ? `/uploads/${req.file.filename}` : null;
+
+  if (!['IT', 'Engineering'].includes(provider_type)) {
+    return res.status(400).json({ error: 'Invalid Provider Type. Must be IT or Engineering.' });
+  }
 
   try {
     const pool = await sql.connect({ ...config, database: 'srms_db' });
@@ -794,22 +813,7 @@ app.get('/api/equipment', async (req, res) => {
   }
 });
 
-app.get('/api/logs', async (req, res) => {
-  try {
-    const pool = await sql.connect({ ...config, database: 'srms_db' });
-    const result = await pool.request()
-      .query(`
-        SELECT l.*, r.tracking_no, r.title, s.first_name, s.last_name 
-        FROM technical_logs l
-        JOIN requests r ON l.request_id = r.id
-        LEFT JOIN staff s ON l.staff_id = s.id
-        ORDER BY l.created_at DESC
-      `);
-    res.json(result.recordset);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+
 
 app.get('/api/analytics/staff', async (req, res) => {
   const { provider_type } = req.query;
@@ -831,7 +835,7 @@ app.get('/api/analytics/staff', async (req, res) => {
           (SELECT AVG(CAST(r.rating AS FLOAT)) FROM assignments a JOIN requests r ON a.request_id = r.id 
            WHERE a.staff_id = u.id AND r.status = 'Closed' AND r.rating IS NOT NULL) as avg_rating,
           (SELECT COUNT(*) FROM assignments a JOIN requests r ON a.request_id = r.id 
-           WHERE a.staff_id = u.id AND r.status = 'Assigned') as active_load
+           WHERE a.staff_id = u.id AND r.status IN ('Accepted', 'Assigned', 'Disputed')) as active_load
         FROM users u
         WHERE u.role = 'STAFF' AND (@ptype IS NULL OR u.belongs_to_provider_type = @ptype)
       `);
@@ -1018,6 +1022,79 @@ app.delete('/api/reminders/:id', async (req, res) => {
   }
 });
 
+app.get('/api/equipment', async (req, res) => {
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    const result = await pool.request().query('SELECT * FROM equipment ORDER BY last_service_at DESC');
+    res.json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/equipment/:id/history', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    const result = await pool.request()
+      .input('eid', sql.Int, id)
+      .query(`
+        SELECT l.*, r.tracking_no, r.title, u.name as staff_name
+        FROM technical_logs l
+        JOIN requests r ON l.request_id = r.id
+        JOIN request_assets ra ON r.id = ra.request_id
+        LEFT JOIN users u ON l.staff_id = u.id
+        WHERE ra.equipment_id = @eid
+        ORDER BY l.created_at DESC
+      `);
+    res.json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/equipment/search', async (req, res) => {
+  const { query } = req.query;
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    
+    // 1. Find the equipment
+    const equipRes = await pool.request()
+      .input('q', sql.NVarChar, query)
+      .query(`
+        SELECT TOP 1 * FROM equipment 
+        WHERE property_no = @q OR serial_no = @q
+      `);
+
+    if (equipRes.recordset.length === 0) {
+      return res.status(404).json({ message: 'No asset found with this identifier' });
+    }
+
+    const equipment = equipRes.recordset[0];
+
+    // 2. Get history (logs from all requests linked to this equipment)
+    const historyRes = await pool.request()
+      .input('eid', sql.Int, equipment.id)
+      .query(`
+        SELECT l.*, r.tracking_no, r.title, u.name as staff_name, r.created_at as request_date
+        FROM technical_logs l
+        JOIN requests r ON l.request_id = r.id
+        JOIN request_assets ra ON r.id = ra.request_id
+        LEFT JOIN users u ON l.staff_id = u.id
+        WHERE ra.equipment_id = @eid
+        ORDER BY l.created_at DESC
+      `);
+
+    res.json({
+      equipment,
+      history: historyRes.recordset
+    });
+  } catch (err) {
+    console.error('Asset search error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/logs', async (req, res) => {
   try {
     const pool = await sql.connect({ ...config, database: 'srms_db' });
@@ -1030,7 +1107,8 @@ app.get('/api/logs', async (req, res) => {
     `);
     res.json(result.recordset);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('API Error /api/logs:', err);
+    res.status(500).json({ error: 'Failed to retrieve system logs' });
   }
 });
 
