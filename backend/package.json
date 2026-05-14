@@ -1,0 +1,20 @@
+{
+  "name": "srms-backend",
+  "version": "1.0.0",
+  "description": "SRMS Backend",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.5.2",
+    "fs": "^0.0.1-security",
+    "mssql": "^10.0.4",
+    "multer": "^2.1.1",
+    "path": "^0.12.7"
+  }
+}
