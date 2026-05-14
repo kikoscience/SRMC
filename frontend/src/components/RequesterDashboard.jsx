@@ -580,7 +580,12 @@ const RequesterDashboard = ({ notify }) => {
                   }`}>
                     {selectedRequest.status}
                   </div>
-                  <div className="px-6 py-3 rounded-2xl bg-white/5 border border-white/10 text-white/40 text-xs font-black uppercase tracking-[0.3em]">
+                  <div className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-[0.3em] border transition-all ${
+                    selectedRequest.priority === 'Urgent' ? 'bg-red-500/10 border-red-500/30 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' :
+                    selectedRequest.priority === 'High' ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]' :
+                    selectedRequest.priority === 'Medium' ? 'bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]' :
+                    'bg-white/5 border-white/10 text-white/40'
+                  }`}>
                     {selectedRequest.priority} Priority
                   </div>
                 </div>

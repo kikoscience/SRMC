@@ -26,7 +26,7 @@ import {
   SpeakerWaveIcon,
   PrinterIcon,
   ArrowDownTrayIcon,
-  ShieldExclamationIcon,
+  MagnifyingGlassIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -34,6 +34,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ProviderStaffView from './ProviderStaffView';
 import CommentSection from './CommentSection';
 import PrintableRequest from './PrintableRequest';
+import { getPriorityStyles, getTimeToBreach, getStatusColor } from '../utils/statusHelper';
 
 const ProviderDashboard = ({ type, notify }) => {
   const [activeTab, setActiveTab] = useState('review');
@@ -42,8 +43,6 @@ const ProviderDashboard = ({ type, notify }) => {
   const [techParts, setTechParts] = useState([]);
   const [loadingTech, setLoadingTech] = useState(false);
   const [equipment, setEquipment] = useState([]);
-  const [selectedSound, setSelectedSound] = useState(localStorage.getItem('srmc_alert_sound') || 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
-  const alertAudio = React.useRef(new Audio(selectedSound));
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -68,6 +67,12 @@ const ProviderDashboard = ({ type, notify }) => {
   const [printingReq, setPrintingReq] = useState(null);
   const [printingLogs, setPrintingLogs] = useState([]);
   const [printingParts, setPrintingParts] = useState([]);
+  const [reminders, setReminders] = useState([]);
+  const [newReminder, setNewReminder] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('All');
+  const itemsPerPage = 10;
 
   const fetchGlobalLogs = async () => {
     try {
@@ -97,6 +102,44 @@ const ProviderDashboard = ({ type, notify }) => {
     } catch (err) {
       console.error('Fetch error:', err);
       setRequests([]);
+    }
+  };
+
+  const fetchReminders = async () => {
+    try {
+      const host = window.location.hostname || 'localhost';
+      const res = await fetch(`http://${host}:5001/api/reminders?provider_type=${type}`);
+      const data = await res.json();
+      setReminders(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Fetch reminders error:', err);
+    }
+  };
+
+  const handleAddReminder = async () => {
+    if (!newReminder.trim()) return;
+    try {
+      const host = window.location.hostname || 'localhost';
+      await fetch(`http://${host}:5001/api/reminders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newReminder, provider_type: type })
+      });
+      setNewReminder('');
+      fetchReminders();
+      notify('Reminder Broadcasted!');
+    } catch (err) {
+      console.error('Add reminder error:', err);
+    }
+  };
+
+  const handleDeleteReminder = async (id) => {
+    try {
+      const host = window.location.hostname || 'localhost';
+      await fetch(`http://${host}:5001/api/reminders/${id}`, { method: 'DELETE' });
+      fetchReminders();
+    } catch (err) {
+      console.error('Delete reminder error:', err);
     }
   };
 
@@ -325,19 +368,14 @@ const ProviderDashboard = ({ type, notify }) => {
     }
   };
 
-  const getTimeToBreach = (deadline) => {
-    if (!deadline) return null;
-    const diff = new Date(deadline) - new Date();
-    if (diff < 0) return 'BREACHED';
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return `${hours}h ${mins}m`;
-  };
   React.useEffect(() => {
     fetchRequests();
     fetchStaff();
     fetchAnalytics();
+    fetchGlobalLogs();
+    fetchReminders();
+    const interval = setInterval(fetchRequests, 5000);
+    return () => clearInterval(interval);
   }, [type]);
 
   const fetchTechDetails = async (reqId) => {
@@ -377,40 +415,7 @@ const ProviderDashboard = ({ type, notify }) => {
     }
   }, [dispatchingReq, activeTab]);
 
-  const soundOptions = [
-    { name: 'Industrial Beep', url: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' },
-    { name: 'Digital Alert', url: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' },
-    { name: 'Interstellar Urgency', url: 'https://assets.mixkit.co/active_storage/sfx/2569/2569-preview.mp3' },
-    { name: 'Soft Chime', url: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3' },
-    { name: 'Glass Ding', url: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3' }
-  ];
 
-  const handleSoundChange = (url) => {
-    setSelectedSound(url);
-    localStorage.setItem('srmc_alert_sound', url);
-    alertAudio.current.src = url;
-    alertAudio.current.load();
-    // Play once to preview
-    alertAudio.current.loop = false;
-    alertAudio.current.play().then(() => {
-      setTimeout(() => { alertAudio.current.loop = true; }, 1000);
-    }).catch(e => console.error("Preview failed:", e));
-  };
-
-  React.useEffect(() => {
-    const hasAlert = requests.some(r => {
-      const isBreached = r.sla_deadline && (new Date(r.sla_deadline) < new Date()) && r.status !== 'Completed';
-      return r.is_nudged || isBreached;
-    });
-
-    if (hasAlert) {
-      alertAudio.current.loop = true;
-      alertAudio.current.play().catch(err => console.log('Audio autoplay blocked'));
-    } else {
-      alertAudio.current.pause();
-      alertAudio.current.currentTime = 0;
-    }
-  }, [requests]);
 
   const fetchEquipment = async () => {
     try {
@@ -457,9 +462,6 @@ const ProviderDashboard = ({ type, notify }) => {
     if (activeTab === 'history') {
       fetchGlobalLogs();
     }
-    return () => {
-      alertAudio.current.pause();
-    };
   }, [activeTab]);
 
   if (isProxyMode) {
@@ -499,7 +501,7 @@ const ProviderDashboard = ({ type, notify }) => {
           { id: 'team', name: 'Staff Registry', icon: UsersIcon, count: staff.length },
           { id: 'analytics', name: 'Staff Performance', icon: BoltIcon },
           { id: 'history', name: 'Live Audit Logs', icon: ArchiveBoxIcon },
-          { id: 'settings', name: 'Alert Settings', icon: Cog6ToothIcon },
+          { id: 'reminders', name: 'Broadcast Reminders', icon: SpeakerWaveIcon },
         ].map((item) => (
           <button
             key={item.id}
@@ -677,81 +679,125 @@ const ProviderDashboard = ({ type, notify }) => {
         )}
 
         {activeTab === 'master' && (
-          <div className="grid gap-4">
-            {requests.map((req) => (
-              <motion.div 
-                animate={{ 
-                  scale: (req.is_nudged || (req.sla_deadline && new Date(req.sla_deadline) < new Date())) ? [1, 1.02, 1] : 1,
-                  backgroundColor: req.is_nudged ? ['rgba(255,255,255,0.02)', 'rgba(234,179,8,0.05)', 'rgba(255,255,255,0.02)'] : 
-                                  (req.sla_deadline && new Date(req.sla_deadline) < new Date()) ? ['rgba(255,255,255,0.02)', 'rgba(239,68,68,0.08)', 'rgba(255,255,255,0.02)'] : 
-                                  'rgba(255,255,255,0.02)'
-                }}
-                transition={{
-                  scale: (req.is_nudged || (req.sla_deadline && new Date(req.sla_deadline) < new Date())) ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" } : {},
-                  backgroundColor: (req.is_nudged || (req.sla_deadline && new Date(req.sla_deadline) < new Date())) ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" } : {}
-                }}
-                key={req.id} 
-                onClick={() => {
-                  setDispatchingReq(req);
-                  setActiveTab('job_details');
-                }}
-                className={`glass-card p-6 cursor-pointer group flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 transition-all hover:bg-white/[0.04] relative overflow-hidden ${
-                  req.status === 'Rejected' ? 'border-l-red-500 shadow-[0_10px_30px_rgba(239,68,68,0.1)]' :
-                  req.status === 'Completed' ? 'border-l-green-500 shadow-[0_10px_30px_rgba(34,197,94,0.1)]' :
-                  'border-l-it-cyan shadow-[0_10px_30px_rgba(0,255,255,0.05)]'
-                }`}
-              >
-                {/* Background Status Stamp */}
-                <div className={`absolute right-1/4 top-1/2 -translate-y-1/2 pointer-events-none opacity-[0.08] text-5xl font-black uppercase tracking-[0.2em] transition-all group-hover:opacity-20 group-hover:scale-110 ${
-                  req.status === 'Rejected' ? 'text-red-500' :
-                  req.status === 'Completed' ? 'text-green-500' :
-                  req.status === 'Pending Review' ? 'text-yellow-500' :
-                  'text-it-cyan'
-                }`}>
-                  {req.status}
-                </div>
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-6 bg-white/[0.02] p-6 rounded-3xl border border-white/5">
+              <div className="flex items-center gap-4 flex-1 w-full md:max-w-xl bg-white/5 px-6 py-3 rounded-2xl border border-white/10 focus-within:border-it-cyan/50 transition-all">
+                <MagnifyingGlassIcon className="w-5 h-5 text-white/20" />
+                <input 
+                  type="text" 
+                  placeholder="Search by Tracking No, Title, or Location..." 
+                  className="bg-transparent border-none text-sm w-full focus:ring-0 text-white placeholder-white/20"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1); // Reset to first page on search
+                  }}
+                />
+              </div>
 
-                <div className="flex items-center gap-6 flex-1 relative z-10">
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${
-                    req.status === 'Rejected' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
-                    req.status === 'Completed' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                    'bg-it-cyan/10 text-it-cyan border border-it-cyan/20'
-                  }`}>
-                    {req.status === 'Rejected' ? <XCircleIcon className="w-8 h-8" /> : 
-                     req.status === 'Completed' ? <CheckCircleIcon className="w-8 h-8" /> :
-                     <ClockIcon className="w-8 h-8" />}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className="text-[10px] font-mono text-it-cyan bg-it-cyan/10 px-2 py-0.5 rounded uppercase tracking-widest">{req.tracking_no}</span>
-                      <span className={`text-[10px] uppercase px-2 py-0.5 rounded font-black tracking-widest ${
-                        req.priority === 'Urgent' ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-white/5 text-white/40'
-                      }`}>
-                        {req.priority}
-                      </span>
-                    </div>
-                    <h3 className="text-xl font-bold uppercase tracking-tight italic">{req.title}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-white/20 text-[10px] uppercase tracking-[0.2em] font-bold">
-                        {req.created_at ? new Date(req.created_at).toLocaleDateString() : 'Date TBD'} • {req.location || 'Site TBD'}
-                      </p>
-                      {req.assigned_names && (
-                        <div className="flex items-center gap-1 ml-2 px-2 py-0.5 rounded bg-it-cyan/10 border border-it-cyan/20">
-                          <UsersIcon className="w-3 h-3 text-it-cyan" />
-                          <span className="text-[8px] font-black text-it-cyan uppercase tracking-tighter">{req.assigned_names}</span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-none w-full md:w-auto">
+                {['All', 'Pending Review', 'Accepted', 'Assigned', 'Completed', 'Rejected'].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => {
+                      setStatusFilter(status);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all whitespace-nowrap ${
+                      statusFilter === status 
+                        ? (status === 'All' ? 'bg-it-cyan text-black border-it-cyan' : 
+                           status === 'Completed' ? 'bg-green-500 text-black border-green-500' :
+                           status === 'Rejected' ? 'bg-red-500 text-black border-red-500' :
+                           'bg-it-cyan text-black border-it-cyan')
+                        : 'bg-white/5 text-white/40 border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              {(() => {
+                const filtered = requests.filter(r => {
+                  const matchesSearch = !searchQuery || 
+                    r.tracking_no?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                    r.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    r.location?.toLowerCase().includes(searchQuery.toLowerCase());
+                  
+                  const matchesStatus = statusFilter === 'All' || r.status === statusFilter;
+                  
+                  return matchesSearch && matchesStatus;
+                });
+
+                const totalPages = Math.ceil(filtered.length / itemsPerPage);
+                const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+                return (
+                  <>
+                    <div className="flex justify-between items-center px-2">
+                      <div className="text-[10px] uppercase tracking-[0.3em] font-black text-white/20">
+                        Showing {paginated.length} of {filtered.length} matching requests
+                      </div>
+                      {totalPages > 1 && (
+                        <div className="flex items-center gap-2">
+                          <button 
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(p => p - 1)}
+                            className="p-2 rounded-lg bg-white/5 text-white/40 hover:bg-white/10 disabled:opacity-20 transition-all"
+                          >
+                            <ChevronRightIcon className="w-4 h-4 rotate-180" />
+                          </button>
+                          <span className="text-[10px] font-mono text-it-cyan px-3 py-1 bg-it-cyan/10 rounded-lg border border-it-cyan/20">
+                            Page {currentPage} / {totalPages}
+                          </span>
+                          <button 
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage(p => p + 1)}
+                            className="p-2 rounded-lg bg-white/5 text-white/40 hover:bg-white/10 disabled:opacity-20 transition-all"
+                          >
+                            <ChevronRightIcon className="w-4 h-4" />
+                          </button>
                         </div>
                       )}
                     </div>
-                  </div>
-                </div>
-                <div className="text-right flex items-center gap-4 relative z-10">
-                  <span className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-black">View</span>
-                  <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center group-hover:border-it-cyan transition-all group-hover:bg-it-cyan group-hover:text-black">
-                    <PlusIcon className="w-5 h-5" />
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+
+                    {paginated.map((req) => (
+                      <motion.div 
+                        key={req.id} 
+                        onClick={() => { setDispatchingReq(req); setActiveTab('job_details'); }}
+                        className="glass-card p-6 cursor-pointer group flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 transition-all hover:bg-white/[0.04] relative overflow-hidden border-l-it-cyan shadow-[0_10px_30px_rgba(0,255,255,0.05)]"
+                      >
+                        <div className="flex-1 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-mono text-it-cyan bg-it-cyan/10 px-2 py-0.5 rounded">{req.tracking_no}</span>
+                            <span className="text-xs text-white/40 uppercase tracking-widest">{req.location}</span>
+                          </div>
+                          <h3 className="text-xl font-bold group-hover:text-it-cyan transition-colors">{req.title}</h3>
+                          <div className="flex items-center gap-4 text-[10px] uppercase tracking-widest font-bold">
+                            <span className={getStatusColor(req.status, type)}>{req.status}</span>
+                            <span className="text-white/10">•</span>
+                            <span className="text-white/20">{new Date(req.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="text-right space-y-3 w-full md:w-auto">
+                          <div className={`px-4 py-2 rounded-xl border font-black text-[10px] uppercase tracking-[0.2em] inline-block ${getPriorityStyles(req.priority).bg} ${getPriorityStyles(req.priority).text} ${getPriorityStyles(req.priority).border} ${getPriorityStyles(req.priority).glow}`}>
+                            {req.priority}
+                          </div>
+                          {req.sla_deadline && (
+                            <div className={`text-[10px] font-mono font-bold ${getTimeToBreach(req.sla_deadline) === 'BREACHED' ? 'text-red-500 animate-pulse' : 'text-white/40'}`}>
+                              SLA: {getTimeToBreach(req.sla_deadline)}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </>
+                );
+              })()}
+            </div>
           </div>
         )}
 
@@ -997,49 +1043,7 @@ const ProviderDashboard = ({ type, notify }) => {
           </div>
         )}
 
-        {activeTab === 'settings' && (
-          <div className="max-w-2xl mx-auto space-y-8">
-            <div className="bg-white/[0.02] p-10 rounded-[3rem] border border-white/5">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-it-cyan/10 rounded-2xl">
-                  <SpeakerWaveIcon className="w-8 h-8 text-it-cyan" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white">Alert <span className="text-it-cyan">Configuration</span></h3>
-                  <p className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-black mt-1">Customize "Follow Up" notification audio</p>
-                </div>
-              </div>
 
-              <div className="space-y-4">
-                {soundOptions.map((option) => (
-                  <button
-                    key={option.url}
-                    onClick={() => handleSoundChange(option.url)}
-                    className={`w-full p-6 rounded-2xl border-2 flex items-center justify-between transition-all ${
-                      selectedSound === option.url 
-                        ? 'border-it-cyan bg-it-cyan/10 shadow-[0_0_30px_rgba(0,255,255,0.1)]' 
-                        : 'border-white/5 hover:border-white/10 bg-white/[0.01]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-3 h-3 rounded-full ${selectedSound === option.url ? 'bg-it-cyan animate-pulse' : 'bg-white/10'}`} />
-                      <span className={`text-sm font-bold uppercase tracking-widest ${selectedSound === option.url ? 'text-it-cyan' : 'text-white/40'}`}>
-                        {option.name}
-                      </span>
-                    </div>
-                    {selectedSound === option.url && <SpeakerWaveIcon className="w-5 h-5 text-it-cyan" />}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-10 p-6 rounded-2xl bg-white/[0.02] border border-dashed border-white/10">
-                 <p className="text-[10px] text-white/20 uppercase tracking-widest font-black leading-relaxed">
-                   Note: The selected sound will loop continuously whenever a requester triggers a "Follow Up" alert until the request is viewed.
-                 </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {activeTab === 'team' && (
           <div className="space-y-6">
@@ -1300,6 +1304,56 @@ const ProviderDashboard = ({ type, notify }) => {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'reminders' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="glass-card p-8 border-white/5">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <SpeakerWaveIcon className="w-6 h-6 text-it-cyan" />
+                Broadcast Portal Reminders
+              </h3>
+              <div className="flex gap-4">
+                <input 
+                  type="text" 
+                  className="input-field flex-1" 
+                  placeholder="Enter reminder for the public portal marquee..."
+                  value={newReminder}
+                  onChange={(e) => setNewReminder(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddReminder()}
+                />
+                <button 
+                  onClick={handleAddReminder}
+                  className={`px-8 py-3 rounded-xl font-bold transition-all ${type === 'IT' ? 'bg-it-cyan' : 'bg-eng-orange'} text-black hover:scale-105`}
+                >
+                  Broadcast
+                </button>
+              </div>
+              <p className="mt-4 text-[10px] text-white/20 uppercase tracking-widest font-bold">This message will scroll horizontally at the bottom of the {type} Operations Board.</p>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-[0.3em] text-white/40 px-2">Active Broadcasts</h4>
+              {reminders.length === 0 ? (
+                <div className="glass-card p-12 text-center text-white/10 uppercase tracking-widest text-sm">No active reminders</div>
+              ) : (
+                reminders.map((rem) => (
+                  <div key={rem.id} className="glass-card p-6 flex justify-between items-center group bg-white/[0.01]">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-2 h-2 rounded-full ${type === 'IT' ? 'bg-it-cyan' : 'bg-eng-orange'} animate-pulse`} />
+                      <p className="text-white/80">{rem.text}</p>
+                    </div>
+                    <button 
+                      onClick={() => handleDeleteReminder(rem.id)}
+                      className="p-2 opacity-0 group-hover:opacity-100 text-white/20 hover:text-red-500 transition-all"
+                    >
+                      <XCircleIcon className="w-5 h-5" />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}

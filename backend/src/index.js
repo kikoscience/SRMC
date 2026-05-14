@@ -161,6 +161,16 @@ const initDb = async () => {
         BEGIN
           ALTER TABLE equipment ADD model NVARCHAR(255);
         END
+        
+        IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[reminders]') AND type in (N'U'))
+        BEGIN
+          CREATE TABLE reminders (
+            id INT IDENTITY(1,1) PRIMARY KEY,
+            text NVARCHAR(MAX) NOT NULL,
+            provider_type NVARCHAR(50) NOT NULL,
+            created_at DATETIME DEFAULT GETDATE()
+          );
+        END
       `);
 
       // Link Request to Equipment
@@ -403,9 +413,10 @@ app.get('/api/requests', async (req, res) => {
     
     const request = pool.request();
     
-    if (staff_id) {
+    const parsedStaffId = (staff_id && staff_id !== 'undefined') ? parseInt(staff_id) : null;
+    if (parsedStaffId) {
       query += ' JOIN assignments a_main ON r.id = a_main.request_id WHERE a_main.staff_id = @staff_id';
-      request.input('staff_id', sql.Int, staff_id);
+      request.input('staff_id', sql.Int, parsedStaffId);
       if (provider_type) {
         query += ' AND r.provider_type = @provider_type';
         request.input('provider_type', sql.NVarChar, provider_type);
@@ -429,43 +440,53 @@ app.post('/api/requests', upload.single('attachment'), async (req, res) => {
 
   try {
     const pool = await sql.connect({ ...config, database: 'srms_db' });
-    
-    // Standardize Tracking No: PREFIX-YYYY-MM-0000
-    const prefix = provider_type === 'IT' ? 'IT' : 'EFM';
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    
-    const seqResult = await pool.request()
-      .input('pt', sql.NVarChar, provider_type)
-      .input('yr', sql.Int, year)
-      .query('SELECT COUNT(*) as total FROM requests WHERE provider_type = @pt AND YEAR(created_at) = @yr');
-    
-    const sequence = (seqResult.recordset[0].total + 1).toString().padStart(4, '0');
-    const tracking_no = `${prefix}-${year}-${month}-${sequence}`;
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
 
-    // SLA Matrix (Hours)
-    const slaHours = { 'Urgent': 2, 'High': 4, 'Medium': 24, 'Low': 48 };
-    const deadline = new Date();
-    deadline.setHours(deadline.getHours() + (slaHours[priority] || 24));
+    try {
+      const request = transaction.request();
+      const prefix = provider_type === 'IT' ? 'IT' : 'EFM';
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
 
-    const result = await pool.request()
-      .input('tracking_no', sql.NVarChar, tracking_no)
-      .input('title', sql.NVarChar, title || 'Untitled Request')
-      .input('description', sql.NVarChar, description || '')
-      .input('requested_by', sql.NVarChar, requested_by || 'Anonymous')
-      .input('priority', sql.NVarChar, priority)
-      .input('location', sql.NVarChar, location || 'Not Specified')
-      .input('requester_id', sql.Int, parseInt(requester_id) || 1)
-      .input('provider_type', sql.NVarChar, provider_type || 'IT')
-      .input('attachment_url', sql.NVarChar, attachment_url)
-      .input('deadline', sql.DateTime, deadline)
-      .query(`
-        INSERT INTO requests (tracking_no, title, description, requested_by, priority, original_priority, location, requester_id, provider_type, attachment_url, sla_deadline)
-        VALUES (@tracking_no, @title, @description, @requested_by, @priority, @priority, @location, @requester_id, @provider_type, @attachment_url, @deadline);
-        SELECT SCOPE_IDENTITY() AS id;
-      `);
-    res.status(201).json({ id: result.recordset[0].id });
+      // Standardize Tracking No: PREFIX-YYYY-MM-0000 with UPDLOCK
+      const seqResult = await request
+        .input('pt', sql.NVarChar, provider_type || 'IT')
+        .input('yr', sql.Int, year)
+        .query('SELECT COUNT(*) as total FROM requests WITH (UPDLOCK, HOLDLOCK) WHERE provider_type = @pt AND YEAR(created_at) = @yr');
+      
+      const sequence = (seqResult.recordset[0].total + 1).toString().padStart(4, '0');
+      const tracking_no = `${prefix}-${year}-${month}-${sequence}`;
+
+      // SLA Matrix (Hours)
+      const slaHours = { 'Urgent': 2, 'High': 4, 'Medium': 24, 'Low': 48 };
+      const deadline = new Date();
+      deadline.setHours(deadline.getHours() + (slaHours[priority] || 24));
+
+      const result = await request
+        .input('tracking_no', sql.NVarChar, tracking_no)
+        .input('title', sql.NVarChar, title || 'Untitled Request')
+        .input('description', sql.NVarChar, description || '')
+        .input('requested_by', sql.NVarChar, requested_by || 'Anonymous')
+        .input('priority', sql.NVarChar, priority)
+        .input('location', sql.NVarChar, location || 'Not Specified')
+        .input('requester_id', sql.Int, parseInt(requester_id) || 1)
+        .input('provider_type', sql.NVarChar, provider_type || 'IT')
+        .input('attachment_url', sql.NVarChar, attachment_url)
+        .input('deadline', sql.DateTime, deadline)
+        .query(`
+          INSERT INTO requests (tracking_no, title, description, requested_by, priority, original_priority, location, requester_id, provider_type, attachment_url, sla_deadline)
+          VALUES (@tracking_no, @title, @description, @requested_by, @priority, @priority, @location, @requester_id, @provider_type, @attachment_url, @deadline);
+          SELECT SCOPE_IDENTITY() AS id;
+        `);
+
+      await transaction.commit();
+      res.status(201).json({ id: result.recordset[0].id, tracking_no });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
   } catch (err) {
     console.error('POST /api/requests error:', err);
     res.status(500).json({ error: 'Database Error: ' + err.message });
@@ -946,6 +967,101 @@ app.post('/api/requests/:id/comments', async (req, res) => {
         VALUES (@request_id, @user_name, @user_role, @comment)
       `);
     res.json({ message: 'Comment added' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Reminders Endpoints
+app.get('/api/reminders', async (req, res) => {
+  const { provider_type } = req.query;
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    let query = 'SELECT * FROM reminders';
+    const request = pool.request();
+    if (provider_type) {
+      query += ' WHERE provider_type = @pt';
+      request.input('pt', sql.NVarChar, provider_type);
+    }
+    query += ' ORDER BY created_at DESC';
+    const result = await request.query(query);
+    res.json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/reminders', async (req, res) => {
+  const { text, provider_type } = req.body;
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    await pool.request()
+      .input('text', sql.NVarChar, text)
+      .input('pt', sql.NVarChar, provider_type)
+      .query('INSERT INTO reminders (text, provider_type) VALUES (@text, @pt)');
+    res.json({ message: 'Reminder added' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/reminders/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM reminders WHERE id = @id');
+    res.json({ message: 'Reminder deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/logs', async (req, res) => {
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    const result = await pool.request().query(`
+      SELECT TOP 100 l.*, r.tracking_no, r.title as request_title, u.first_name, u.last_name
+      FROM technical_logs l
+      LEFT JOIN requests r ON l.request_id = r.id
+      LEFT JOIN users u ON l.staff_id = u.id
+      ORDER BY l.created_at DESC
+    `);
+    res.json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin Endpoints
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    const stats = await pool.request().query(`
+      SELECT 
+        (SELECT COUNT(*) FROM requests) as total_requests,
+        (SELECT COUNT(*) FROM users WHERE role = 'staff') as active_staff,
+        (SELECT COUNT(*) FROM requests WHERE status = 'Completed') as completed_requests,
+        (SELECT AVG(DATEDIFF(HOUR, created_at, GETDATE())) FROM requests WHERE status != 'Completed') as avg_age_hours
+    `);
+    res.json(stats.recordset[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/audit', async (req, res) => {
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    const result = await pool.request().query(`
+      SELECT TOP 50 l.*, r.tracking_no, r.title, u.first_name, u.last_name
+      FROM technical_logs l
+      LEFT JOIN requests r ON l.request_id = r.id
+      LEFT JOIN users u ON l.staff_id = u.id
+      ORDER BY l.created_at DESC
+    `);
+    res.json(result.recordset);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

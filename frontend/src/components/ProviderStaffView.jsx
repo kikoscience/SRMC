@@ -96,6 +96,16 @@ const ProviderStaffView = ({ type, onBack, notify }) => {
     }
   };
 
+  const getTimeToBreach = (deadline) => {
+    if (!deadline) return null;
+    const diff = new Date(deadline) - new Date();
+    if (diff < 0) return 'BREACHED';
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${mins}m`;
+  };
+
   const fetchParts = async (reqId) => {
     try {
       const host = window.location.hostname || 'localhost';
@@ -421,14 +431,26 @@ const ProviderStaffView = ({ type, onBack, notify }) => {
                 >
                   <div className="flex justify-between items-start mb-2">
                     <span className={`text-[10px] font-mono ${type === 'IT' ? 'text-it-cyan' : 'text-eng-orange'}`}>{job.tracking_no}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest ${
-                      job.priority === 'Urgent' ? 'bg-red-400/20 text-red-400' : 'bg-white/5 text-white/40'
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-widest border ${
+                      job.priority === 'Urgent' ? 'bg-red-500/20 text-red-400 border-red-500/20 animate-pulse' : 
+                      job.priority === 'High' ? 'bg-purple-500/20 text-purple-400 border-purple-500/20' :
+                      job.priority === 'Medium' ? 'bg-green-500/20 text-green-400 border-green-500/20' :
+                      'bg-white/5 text-white/40 border-white/10'
                     }`}>
                       {job.priority}
                     </span>
                   </div>
                   <h3 className="text-lg mb-1 font-bold">{job.title}</h3>
-                  <p className="text-sm text-white/40">Location: {job.location}</p>
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-sm text-white/40">Location: {job.location}</p>
+                    {job.sla_deadline && (
+                      <div className={`flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
+                        getTimeToBreach(job.sla_deadline) === 'BREACHED' ? 'bg-red-500 text-white animate-pulse' : 'bg-white/5 text-white/30'
+                      }`}>
+                        <ClockIcon className="w-3 h-3" /> {getTimeToBreach(job.sla_deadline)}
+                      </div>
+                    )}
+                  </div>
                 </button>
               ))
             )}

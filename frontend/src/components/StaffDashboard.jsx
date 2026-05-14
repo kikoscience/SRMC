@@ -17,6 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import CommentSection from './CommentSection';
+import { getPriorityStyles, getTimeToBreach, getStatusColor } from '../utils/statusHelper';
 
 const StaffDashboard = ({ user, notify }) => {
   const [activeJob, setActiveJob] = useState(null);
@@ -144,6 +145,8 @@ const StaffDashboard = ({ user, notify }) => {
     }
   };
 
+  const [isNudged, setIsNudged] = useState(false);
+
   const handleTagAsset = async () => {
     try {
       const host = window.location.hostname || 'localhost';
@@ -252,20 +255,32 @@ const StaffDashboard = ({ user, notify }) => {
             <button 
               key={job.id}
               onClick={() => setActiveJob(job)}
-              className={`w-full text-left glass-card p-6 border-l-4 transition-all ${
+              className={`w-full text-left glass-card p-6 border-l-4 transition-all relative overflow-hidden ${
                 activeJob?.id === job.id ? 'border-l-eng-orange bg-eng-orange/[0.05]' : 'border-l-transparent hover:border-l-white/20'
-              }`}
+              } ${job.is_nudged ? 'border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.2)]' : ''}`}
             >
-              <div className="flex justify-between items-start mb-2">
-                <span className="text-[10px] font-mono text-eng-orange">{job.tracking_no}</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest ${
-                  job.priority === 'Urgent' ? 'bg-red-400/20 text-red-400' : 'bg-white/5 text-white/40'
-                }`}>
+              {job.is_nudged && (
+                <div className="absolute top-0 right-0 px-2 py-0.5 bg-red-500 text-[8px] font-black uppercase tracking-widest animate-pulse z-10">
+                  Follow-up Nudge
+                </div>
+              )}
+              <div className="flex justify-between items-start mb-2 relative z-0">
+                <span className="text-[10px] font-mono text-it-cyan bg-it-cyan/10 px-2 py-0.5 rounded">{job.tracking_no}</span>
+                <div className={`px-2 py-0.5 rounded font-black text-[10px] uppercase tracking-widest border ${getPriorityStyles(job.priority).bg} ${getPriorityStyles(job.priority).text} ${getPriorityStyles(job.priority).border}`}>
                   {job.priority}
-                </span>
+                </div>
               </div>
               <h3 className="text-lg mb-1 font-bold">{job.title}</h3>
-              <p className="text-sm text-white/40">Location: {job.location}</p>
+              <div className="flex justify-between items-center mt-2">
+                <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{job.location}</p>
+                {job.sla_deadline && (
+                  <div className={`flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
+                    getTimeToBreach(job.sla_deadline) === 'BREACHED' ? 'bg-red-500 text-white animate-pulse' : 'bg-white/5 text-white/30'
+                  }`}>
+                    <ClockIcon className="w-3 h-3" /> {getTimeToBreach(job.sla_deadline)}
+                  </div>
+                )}
+              </div>
             </button>
           ))
         )}

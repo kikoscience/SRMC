@@ -10,7 +10,8 @@ import {
   ChevronRightIcon,
   BellAlertIcon,
   XMarkIcon,
-  HandThumbUpIcon
+  HandThumbUpIcon,
+  SpeakerWaveIcon
 } from '@heroicons/react/24/solid';
 import CommentSection from './CommentSection';
 
@@ -19,6 +20,7 @@ const PublicPortal = ({ type }) => {
   const [time, setTime] = useState(new Date());
   const [selectedReq, setSelectedReq] = useState(null);
   const [showDiscussion, setShowDiscussion] = useState(false);
+  const [reminders, setReminders] = useState([]);
   const [alertAudio] = useState(new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3')); 
   alertAudio.loop = true;
 
@@ -53,6 +55,17 @@ const PublicPortal = ({ type }) => {
     }
   };
 
+  const fetchReminders = async () => {
+    try {
+      const host = window.location.hostname || 'localhost';
+      const res = await fetch(`http://${host}:5001/api/reminders?provider_type=${type}`);
+      const data = await res.json();
+      setReminders(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Fetch reminders error:', err);
+    }
+  };
+
   useEffect(() => {
     if (requests.some(r => r.is_nudged)) {
       alertAudio.play().catch(err => console.log('Audio autoplay blocked until interaction'));
@@ -64,17 +77,20 @@ const PublicPortal = ({ type }) => {
 
   useEffect(() => {
     fetchAllRequests();
+    fetchReminders();
     const interval = setInterval(fetchAllRequests, 5000); 
+    const reminderInterval = setInterval(fetchReminders, 10000);
     const timer = setInterval(() => setTime(new Date()), 1000);
 
     return () => {
       clearInterval(interval);
+      clearInterval(reminderInterval);
       clearInterval(timer);
       alertAudio.pause();
     };
   }, [type, alertAudio]);
 
-  const activeRequests = requests.filter(r => ['Accepted', 'Assigned'].includes(r.status));
+  const activeRequests = requests.filter(r => ['Pending Review', 'Accepted', 'Assigned'].includes(r.status));
   
 
   const themeColor = type === 'IT' ? 'text-it-cyan' : 'text-eng-orange';
@@ -155,7 +171,7 @@ const PublicPortal = ({ type }) => {
                         resetFollowUp(req.id);
                       }
                     }}
-                    className={`glass-card p-10 border-l-8 ${themeBorder} bg-white/[0.02] flex justify-between items-center group hover:bg-white/[0.05] cursor-pointer transition-all shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative overflow-hidden ${req.is_nudged ? 'border-yellow-500/50' : ''}`}
+                    className={`glass-card p-10 min-h-[160px] border-l-8 ${themeBorder} bg-white/[0.02] flex flex-col justify-center group hover:bg-white/[0.05] cursor-pointer transition-all shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative overflow-hidden ${req.is_nudged ? 'border-yellow-500/50' : ''}`}
                   >
                     {/* Follow Up Bell */}
                     {req.is_nudged && (
@@ -177,31 +193,11 @@ const PublicPortal = ({ type }) => {
 
                     <div className="flex-1 relative z-10">
                       <div className="flex items-center gap-4 mb-4">
-                        <span className={`text-sm font-mono ${themeColor} bg-white/5 px-3 py-1 rounded-lg uppercase tracking-[0.2em] font-bold`}>{req.tracking_no}</span>
-                        <div className="flex items-center gap-2 text-xs text-white/30 uppercase font-black tracking-widest">
+                        <span className={`text-sm font-mono ${themeColor} bg-white/5 px-4 py-1.5 rounded-xl uppercase tracking-[0.2em] font-bold border border-white/5`}>{req.tracking_no}</span>
+                        <div className="flex items-center gap-2 text-xs text-white/30 uppercase font-black tracking-widest bg-white/[0.02] px-3 py-1.5 rounded-xl border border-white/5">
                           <MapPinIcon className="w-4 h-4" />
                           {req.location}
                         </div>
-                        {req.priority === 'Urgent' && (
-                           <div className="px-3 py-1 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full animate-pulse shadow-[0_0_20px_rgba(220,38,38,0.5)]">
-                             Urgent Priority
-                           </div>
-                        )}
-                        {req.priority === 'High' && (
-                           <div className="px-3 py-1 bg-purple-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(147,51,234,0.3)]">
-                             High Priority
-                           </div>
-                        )}
-                        {req.priority === 'Medium' && (
-                           <div className="px-3 py-1 bg-green-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(22,163,74,0.3)]">
-                             Medium Priority
-                           </div>
-                        )}
-                        {req.priority === 'Low' && (
-                           <div className="px-3 py-1 bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest rounded-full border border-white/10">
-                             Low Priority
-                           </div>
-                        )}
                       </div>
                       <h3 className="text-4xl font-black italic uppercase tracking-tighter text-white group-hover:text-it-cyan transition-colors">{req.title}</h3>
                       <div className="flex items-center gap-6 mt-6">
@@ -212,10 +208,33 @@ const PublicPortal = ({ type }) => {
                       </div>
                     </div>
                     
-                    <div className="text-right space-y-2 opacity-20 group-hover:opacity-100 transition-opacity max-w-[200px] relative z-10">
-                      <p className="text-xs uppercase tracking-[0.3em] font-black text-white/40">Authorized Personnel</p>
-                      <div className={`text-xl font-black ${themeColor} uppercase italic tracking-tighter truncate`}>
-                        {req.assigned_names || 'Awaiting Dispatch'}
+                    <div className="absolute right-10 bottom-10 flex flex-col items-end gap-4 z-10">
+                      <div className="text-right space-y-1 opacity-20 group-hover:opacity-100 transition-opacity max-w-[200px]">
+                        <p className="text-[8px] uppercase tracking-[0.3em] font-black text-white/40">Authorized Personnel</p>
+                        <div className={`text-lg font-black ${themeColor} uppercase italic tracking-tighter truncate`}>
+                          {req.assigned_names || 'Awaiting Dispatch'}
+                        </div>
+                      </div>
+                      
+                      {/* High-Fidelity Priority Card */}
+                      <div className="transform transition-transform group-hover:scale-110 duration-500">
+                        {req.priority === 'Urgent' ? (
+                           <div className="px-8 py-3 bg-red-600 text-white text-xs font-black uppercase tracking-[0.3em] rounded-xl animate-pulse shadow-[0_0_40px_rgba(220,38,38,0.6)] border-2 border-red-400/50">
+                             Urgent Priority
+                           </div>
+                        ) : req.priority === 'High' ? (
+                           <div className="px-8 py-3 bg-purple-600 text-white text-xs font-black uppercase tracking-[0.3em] rounded-xl shadow-[0_0_30px_rgba(147,51,234,0.4)] border-2 border-purple-400/50">
+                             High Priority
+                           </div>
+                        ) : req.priority === 'Medium' ? (
+                           <div className="px-8 py-3 bg-green-600 text-white text-xs font-black uppercase tracking-[0.3em] rounded-xl shadow-[0_0_30px_rgba(22,163,74,0.4)] border-2 border-green-400/50">
+                             Medium Priority
+                           </div>
+                        ) : (
+                           <div className="px-8 py-3 bg-white/5 text-white/40 text-xs font-black uppercase tracking-[0.3em] rounded-xl border-2 border-white/10">
+                             {req.priority || 'Low'} Priority
+                           </div>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -232,8 +251,36 @@ const PublicPortal = ({ type }) => {
         </div>
       </div>
 
-      {/* Footer Info Bar */}
-      <div className="mt-12 flex justify-between items-center border-t border-white/5 pt-8 text-white/10">
+      {/* Footer Reminders Marquee */}
+      <div className="mt-8 relative overflow-hidden bg-white/[0.02] border-y border-white/5 py-4">
+        <div className="flex whitespace-nowrap animate-marquee-h">
+          {[...reminders, ...reminders, ...reminders].map((rem, i) => (
+            <div key={`${rem.id}-${i}`} className="flex items-center mx-12 gap-4">
+               <SpeakerWaveIcon className={`w-5 h-5 ${themeColor}`} />
+               <span className="text-xl font-black uppercase italic tracking-wider text-white/80">{rem.text}</span>
+               <div className="w-2 h-2 rounded-full bg-white/20"></div>
+            </div>
+          ))}
+          {reminders.length === 0 && (
+             <div className="flex items-center mx-12 gap-4">
+               <ShieldCheckIcon className={`w-5 h-5 ${themeColor}`} />
+               <span className="text-xl font-black uppercase italic tracking-wider text-white/20">System Integrity Operational • All Protocols Active • No Pending Alerts</span>
+             </div>
+          )}
+        </div>
+      </div>
+    <style>{`
+      .animate-marquee-h {
+        animation: marquee-h 30s linear infinite;
+      }
+      @keyframes marquee-h {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-33.33%); }
+      }
+    `}</style>
+
+    {/* Footer Info Bar */}
+      <div className="mt-6 flex justify-between items-center text-white/10">
         <div className="flex items-center gap-8">
            <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
