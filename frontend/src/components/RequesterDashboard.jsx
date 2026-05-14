@@ -239,6 +239,8 @@ const RequesterDashboard = ({ notify }) => {
     { id: 'Closed', label: 'Closed / Finalized', value: requests.filter(r => ['Closed', 'Completed'].includes(r.status)).length, color: 'text-green-400' },
   ];
 
+  return (
+    <>
     <div className="max-w-6xl mx-auto space-y-10 pb-20 no-print">
       {/* Hero Service Portal Header */}
       <div className="relative overflow-hidden rounded-[3rem] bg-gradient-to-br from-[#0f172a] to-[#1e293b] p-12 shadow-2xl border border-white/5">
@@ -891,7 +893,6 @@ const RequesterDashboard = ({ notify }) => {
           />
         )}
       </div>
-    </div>
     </>
   );
 };
