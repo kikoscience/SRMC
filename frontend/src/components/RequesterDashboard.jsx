@@ -639,7 +639,20 @@ const RequesterDashboard = ({ notify }) => {
                       </div>
                     ))
                   ) : (
-                    selectedRequest.status !== 'Completed' && (
+                    selectedRequest.status === 'Rejected' ? (
+                      <div className="relative pl-8">
+                        <div className="absolute left-0 top-1 w-[15px] h-[15px] rounded-full border-4 border-black bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+                        <div className="flex justify-between mb-1">
+                          <span className="text-xs font-bold text-red-500 uppercase tracking-widest">Request Declined</span>
+                        </div>
+                        <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-xl">
+                          <p className="text-[10px] uppercase tracking-widest text-red-400 mb-2 font-black">Official Rejection Reason</p>
+                          <p className="text-sm text-white/60 italic leading-relaxed">
+                            "{selectedRequest.rejection_reason || 'The request was declined during the review process.'}"
+                          </p>
+                        </div>
+                      </div>
+                    ) : selectedRequest.status !== 'Completed' && (
                       <div className="pl-8 text-sm text-white/20 italic opacity-40">Awaiting technical assessment findings...</div>
                     )
                   )}

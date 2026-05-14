@@ -426,15 +426,29 @@ app.get('/api/requests', async (req, res) => {
 app.post('/api/requests', upload.single('attachment'), async (req, res) => {
   const { title, description, priority, location, requester_id, provider_type, requested_by } = req.body;
   const attachment_url = req.file ? `/uploads/${req.file.filename}` : null;
-  const tracking_no = `SR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-  // SLA Matrix (Hours)
-  const slaHours = { 'Urgent': 2, 'High': 4, 'Medium': 24, 'Low': 48 };
-  const deadline = new Date();
-  deadline.setHours(deadline.getHours() + (slaHours[priority] || 24));
 
   try {
     const pool = await sql.connect({ ...config, database: 'srms_db' });
+    
+    // Standardize Tracking No: PREFIX-YYYY-MM-0000
+    const prefix = provider_type === 'IT' ? 'IT' : 'EFM';
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    
+    const seqResult = await pool.request()
+      .input('pt', sql.NVarChar, provider_type)
+      .input('yr', sql.Int, year)
+      .query('SELECT COUNT(*) as total FROM requests WHERE provider_type = @pt AND YEAR(created_at) = @yr');
+    
+    const sequence = (seqResult.recordset[0].total + 1).toString().padStart(4, '0');
+    const tracking_no = `${prefix}-${year}-${month}-${sequence}`;
+
+    // SLA Matrix (Hours)
+    const slaHours = { 'Urgent': 2, 'High': 4, 'Medium': 24, 'Low': 48 };
+    const deadline = new Date();
+    deadline.setHours(deadline.getHours() + (slaHours[priority] || 24));
+
     const result = await pool.request()
       .input('tracking_no', sql.NVarChar, tracking_no)
       .input('title', sql.NVarChar, title || 'Untitled Request')
