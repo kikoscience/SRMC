@@ -188,13 +188,18 @@ const PublicPortal = ({ type }) => {
                            </div>
                         )}
                         {req.priority === 'High' && (
-                           <div className="px-3 py-1 bg-orange-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+                           <div className="px-3 py-1 bg-purple-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(147,51,234,0.3)]">
                              High Priority
                            </div>
                         )}
-                        {req.priority !== 'Urgent' && req.priority !== 'High' && (
+                        {req.priority === 'Medium' && (
+                           <div className="px-3 py-1 bg-green-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(22,163,74,0.3)]">
+                             Medium Priority
+                           </div>
+                        )}
+                        {req.priority === 'Low' && (
                            <div className="px-3 py-1 bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest rounded-full border border-white/10">
-                             {req.priority} Priority
+                             Low Priority
                            </div>
                         )}
                       </div>

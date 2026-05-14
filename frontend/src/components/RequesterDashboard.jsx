@@ -338,7 +338,10 @@ const RequesterDashboard = ({ notify }) => {
                 <div className="flex items-center gap-3 mb-1">
                   <span className="text-[10px] font-mono text-it-cyan bg-it-cyan/10 px-2 py-0.5 rounded uppercase tracking-widest">{req.tracking_no}</span>
                   <span className={`text-[10px] uppercase px-2 py-0.5 rounded font-black tracking-widest ${
-                    req.priority === 'Urgent' ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-white/5 text-white/40'
+                    req.priority === 'Urgent' ? 'bg-red-500/20 text-red-400 animate-pulse border border-red-500/20' : 
+                    req.priority === 'High' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/20' :
+                    req.priority === 'Medium' ? 'bg-green-500/20 text-green-400 border border-green-500/20' :
+                    'bg-white/5 text-white/40 border border-white/10'
                   }`}>
                     {req.priority}
                   </span>
@@ -445,9 +448,9 @@ const RequesterDashboard = ({ notify }) => {
                 <label className="text-[10px] uppercase tracking-widest text-white/40 mb-2 block">Priority Level</label>
                 <div className="grid grid-cols-4 gap-2">
                   {[
-                    { id: 'Low', color: 'border-green-400 bg-green-400/20 text-green-400' },
-                    { id: 'Medium', color: 'border-blue-400 bg-blue-400/20 text-blue-400' },
-                    { id: 'High', color: 'border-orange-400 bg-orange-400/20 text-orange-400' },
+                    { id: 'Low', color: 'border-white/10 text-white/40' },
+                    { id: 'Medium', color: 'border-green-400 bg-green-400/20 text-green-400' },
+                    { id: 'High', color: 'border-purple-400 bg-purple-400/20 text-purple-400' },
                     { id: 'Urgent', color: 'border-red-500 bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]' },
                   ].map((p) => (
                     <button
@@ -625,10 +628,14 @@ const RequesterDashboard = ({ notify }) => {
                       <div key={log.id} className="relative pl-8">
                         <div className={`absolute left-0 top-1 w-[15px] h-[15px] rounded-full border-4 border-black ${idx === arr.length - 1 && selectedRequest.status !== 'Completed' ? 'bg-it-cyan shadow-[0_0_10px_rgba(0,242,255,0.8)]' : 'bg-white/10'}`} />
                         <div className="flex justify-between mb-1">
-                          <span className="text-xs font-bold text-white/80">{log.staff_name}</span>
+                          <span className={`text-xs font-bold uppercase tracking-widest ${!log.staff_name ? 'text-it-cyan' : 'text-white/80'}`}>
+                            {log.staff_name || 'Administrative Adjustment'}
+                          </span>
                           <span className="text-[10px] text-white/20">{new Date(log.created_at).toLocaleString()}</span>
                         </div>
-                        <p className="text-sm text-white/40 leading-relaxed">{log.notes}</p>
+                        <div className={`p-4 rounded-xl text-sm leading-relaxed ${!log.staff_name ? 'bg-it-cyan/5 border border-it-cyan/10 text-white/80 italic' : 'text-white/40'}`}>
+                          {log.notes}
+                        </div>
                       </div>
                     ))
                   ) : (

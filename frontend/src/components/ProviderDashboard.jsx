@@ -25,7 +25,9 @@ import {
   Cog6ToothIcon,
   SpeakerWaveIcon,
   PrinterIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  ShieldExclamationIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -45,6 +47,10 @@ const ProviderDashboard = ({ type, notify }) => {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [showPriorityModal, setShowPriorityModal] = useState(false);
+  const [targetReq, setTargetReq] = useState(null);
+  const [newPriority, setNewPriority] = useState('');
+  const [adjustmentReason, setAdjustmentReason] = useState('');
   const [requests, setRequests] = useState([]);
   const [staff, setStaff] = useState([]);
   const [staffAnalytics, setStaffAnalytics] = useState([]);
@@ -291,7 +297,43 @@ const ProviderDashboard = ({ type, notify }) => {
       setIsSubmitting(false);
     }
   };
+  const handleAdjustPriority = async () => {
+    if (!adjustmentReason.trim()) {
+      notify('Please provide a reason for adjustment', 'error');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const host = window.location.hostname || 'localhost';
+      const res = await fetch(`http://${host}:5001/api/requests/${targetReq.id}/priority`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          priority: newPriority, 
+          reason: adjustmentReason 
+        })
+      });
+      if (res.ok) {
+        notify(`Priority adjusted to ${newPriority}`);
+        setShowPriorityModal(false);
+        fetchRequests();
+      }
+    } catch (err) {
+      console.error('Priority adjustment error:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
+  const getTimeToBreach = (deadline) => {
+    if (!deadline) return null;
+    const diff = new Date(deadline) - new Date();
+    if (diff < 0) return 'BREACHED';
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${mins}m`;
+  };
   React.useEffect(() => {
     fetchRequests();
     fetchStaff();
@@ -356,7 +398,12 @@ const ProviderDashboard = ({ type, notify }) => {
   };
 
   React.useEffect(() => {
-    if (requests.some(r => r.is_nudged)) {
+    const hasAlert = requests.some(r => {
+      const isBreached = r.sla_deadline && (new Date(r.sla_deadline) < new Date()) && r.status !== 'Completed';
+      return r.is_nudged || isBreached;
+    });
+
+    if (hasAlert) {
       alertAudio.current.loop = true;
       alertAudio.current.play().catch(err => console.log('Audio autoplay blocked'));
     } else {
@@ -547,14 +594,37 @@ const ProviderDashboard = ({ type, notify }) => {
                       <span className="text-[10px] font-mono text-it-cyan bg-it-cyan/10 px-2 py-0.5 rounded">{req.tracking_no}</span>
                       <span className="text-xs text-white/40 uppercase tracking-widest">{req.location || 'No Location'}</span>
                       <div className="px-2 py-0.5 rounded border border-yellow-500/30 bg-yellow-500/10 text-yellow-500 text-[8px] font-black uppercase tracking-widest">Pending Review</div>
+                      {req.sla_deadline && (
+                        <div className={`flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                          getTimeToBreach(req.sla_deadline) === 'BREACHED' ? 'bg-red-500/20 text-red-500 border border-red-500/30 animate-pulse' : 'bg-white/5 text-white/30'
+                        }`}>
+                          <ClockIcon className="w-3 h-3" /> SLA: {getTimeToBreach(req.sla_deadline)}
+                        </div>
+                      )}
                     </div>
                     <h3 className="text-lg mb-1 font-bold">{req.title}</h3>
                     <p className="text-white/40 text-sm">
-                      Submitted {req.created_at ? new Date(req.created_at).toLocaleDateString() : 'N/A'} • <span className={req.priority === 'Urgent' ? 'text-red-400 font-bold' : 'text-it-cyan'}>{req.priority} Priority</span>
+                      Submitted {req.created_at ? new Date(req.created_at).toLocaleDateString() : 'N/A'} • <span className={
+                        req.priority === 'Urgent' ? 'text-red-500 font-black' : 
+                        req.priority === 'High' ? 'text-purple-400 font-bold' : 
+                        req.priority === 'Medium' ? 'text-green-400 font-bold' : 
+                        'text-it-cyan'
+                      }>{req.priority} Priority</span>
                     </p>
                   </div>
                   
                   <div className="flex gap-2">
+                    <button 
+                      onClick={() => {
+                        setTargetReq(req);
+                        setNewPriority(req.priority);
+                        setShowPriorityModal(true);
+                      }}
+                      className="p-3 rounded-xl bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all border border-yellow-500/20"
+                      title="Adjust Priority"
+                    >
+                      <ArrowPathIcon className="w-6 h-6" />
+                    </button>
                     <button 
                       onClick={() => handleReject(req.id)}
                       className="p-3 rounded-xl bg-red-400/10 text-red-400 hover:bg-red-400 hover:text-black transition-all border border-red-400/20"
@@ -611,12 +681,14 @@ const ProviderDashboard = ({ type, notify }) => {
             {requests.map((req) => (
               <motion.div 
                 animate={{ 
-                  scale: req.is_nudged ? [1, 1.02, 1] : 1,
-                  backgroundColor: req.is_nudged ? ['rgba(255,255,255,0.02)', 'rgba(234,179,8,0.05)', 'rgba(255,255,255,0.02)'] : 'rgba(255,255,255,0.02)'
+                  scale: (req.is_nudged || (req.sla_deadline && new Date(req.sla_deadline) < new Date())) ? [1, 1.02, 1] : 1,
+                  backgroundColor: req.is_nudged ? ['rgba(255,255,255,0.02)', 'rgba(234,179,8,0.05)', 'rgba(255,255,255,0.02)'] : 
+                                  (req.sla_deadline && new Date(req.sla_deadline) < new Date()) ? ['rgba(255,255,255,0.02)', 'rgba(239,68,68,0.08)', 'rgba(255,255,255,0.02)'] : 
+                                  'rgba(255,255,255,0.02)'
                 }}
                 transition={{
-                  scale: req.is_nudged ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" } : {},
-                  backgroundColor: req.is_nudged ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" } : {}
+                  scale: (req.is_nudged || (req.sla_deadline && new Date(req.sla_deadline) < new Date())) ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" } : {},
+                  backgroundColor: (req.is_nudged || (req.sla_deadline && new Date(req.sla_deadline) < new Date())) ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" } : {}
                 }}
                 key={req.id} 
                 onClick={() => {
@@ -1381,6 +1453,82 @@ const ProviderDashboard = ({ type, notify }) => {
                     className="flex-1 py-4 rounded-xl bg-red-500 text-black text-xs font-black uppercase tracking-widest hover:bg-red-400 transition-all shadow-lg shadow-red-500/20 disabled:opacity-50"
                   >
                     {isSubmitting ? 'Processing...' : 'Confirm Rejection'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Priority Adjustment Modal */}
+      <AnimatePresence>
+        {showPriorityModal && targetReq && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPriorityModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-[#0a0a1a] border border-it-cyan/20 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col p-10"
+            >
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-3 bg-it-cyan/10 rounded-2xl">
+                   <ArrowPathIcon className="w-8 h-8 text-it-cyan" />
+                </div>
+                <div>
+                   <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white">Adjust <span className="text-it-cyan">Priority</span></h3>
+                   <p className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-black mt-1">Recalculating Operational SLA</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] uppercase tracking-[0.3em] font-black text-white/30 block mb-4">New Response Category</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {['Urgent', 'High', 'Medium', 'Low'].map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setNewPriority(p)}
+                        className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                          newPriority === p ? 'bg-it-cyan text-black border-it-cyan' : 'bg-white/5 text-white/40 border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase tracking-[0.3em] font-black text-white/30 block mb-3 pl-1">Justification for Adjustment</label>
+                  <textarea 
+                    value={adjustmentReason}
+                    onChange={(e) => setAdjustmentReason(e.target.value)}
+                    placeholder="Why is the priority being adjusted? (e.g., Downgraded due to non-critical impact)"
+                    className="w-full h-32 bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/10 text-sm focus:border-it-cyan/50 outline-none transition-all resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => setShowPriorityModal(false)}
+                    className="flex-1 py-4 rounded-xl bg-white/5 text-white/40 text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleAdjustPriority}
+                    disabled={isSubmitting}
+                    className="flex-1 py-4 rounded-xl bg-it-cyan text-black text-xs font-black uppercase tracking-widest hover:bg-[#00d1e0] transition-all shadow-lg shadow-it-cyan/20 disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Updating...' : 'Update & Reset SLA'}
                   </button>
                 </div>
               </div>

@@ -131,6 +131,16 @@ const initDb = async () => {
           ALTER TABLE requests ADD is_nudged BIT DEFAULT 0;
           ALTER TABLE requests ADD last_nudge_at DATETIME;
         END
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[requests]') AND name = 'sla_deadline')
+        BEGIN
+          ALTER TABLE requests ADD sla_deadline DATETIME;
+        END
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[requests]') AND name = 'original_priority')
+        BEGIN
+          ALTER TABLE requests ADD original_priority NVARCHAR(50);
+        END
       `);
 
       // Equipment Table (Internal)
@@ -418,24 +428,65 @@ app.post('/api/requests', upload.single('attachment'), async (req, res) => {
   const attachment_url = req.file ? `/uploads/${req.file.filename}` : null;
   const tracking_no = `SR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+  // SLA Matrix (Hours)
+  const slaHours = { 'Urgent': 2, 'High': 4, 'Medium': 24, 'Low': 48 };
+  const deadline = new Date();
+  deadline.setHours(deadline.getHours() + (slaHours[priority] || 24));
+
   try {
     const pool = await sql.connect({ ...config, database: 'srms_db' });
     const result = await pool.request()
       .input('tracking_no', sql.NVarChar, tracking_no)
-      .input('title', sql.NVarChar, title)
-      .input('description', sql.NVarChar, description)
-      .input('requested_by', sql.NVarChar, requested_by)
+      .input('title', sql.NVarChar, title || 'Untitled Request')
+      .input('description', sql.NVarChar, description || '')
+      .input('requested_by', sql.NVarChar, requested_by || 'Anonymous')
       .input('priority', sql.NVarChar, priority)
-      .input('location', sql.NVarChar, location)
-      .input('requester_id', sql.Int, requester_id)
-      .input('provider_type', sql.NVarChar, provider_type)
+      .input('location', sql.NVarChar, location || 'Not Specified')
+      .input('requester_id', sql.Int, parseInt(requester_id) || 1)
+      .input('provider_type', sql.NVarChar, provider_type || 'IT')
       .input('attachment_url', sql.NVarChar, attachment_url)
+      .input('deadline', sql.DateTime, deadline)
       .query(`
-        INSERT INTO requests (tracking_no, title, description, requested_by, priority, location, requester_id, provider_type, attachment_url)
-        OUTPUT INSERTED.*
-        VALUES (@tracking_no, @title, @description, @requested_by, @priority, @location, @requester_id, @provider_type, @attachment_url)
+        INSERT INTO requests (tracking_no, title, description, requested_by, priority, original_priority, location, requester_id, provider_type, attachment_url, sla_deadline)
+        VALUES (@tracking_no, @title, @description, @requested_by, @priority, @priority, @location, @requester_id, @provider_type, @attachment_url, @deadline);
+        SELECT SCOPE_IDENTITY() AS id;
       `);
-    res.status(201).json(result.recordset[0]);
+    res.status(201).json({ id: result.recordset[0].id });
+  } catch (err) {
+    console.error('POST /api/requests error:', err);
+    res.status(500).json({ error: 'Database Error: ' + err.message });
+  }
+});
+
+app.put('/api/requests/:id/priority', async (req, res) => {
+  const { id } = req.params;
+  const { priority, reason } = req.body;
+  const slaHours = { 'Urgent': 2, 'High': 4, 'Medium': 24, 'Low': 48 };
+  const deadline = new Date();
+  deadline.setHours(deadline.getHours() + (slaHours[priority] || 24));
+
+  try {
+    const pool = await sql.connect({ ...config, database: 'srms_db' });
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    try {
+      await transaction.request()
+        .input('id', sql.Int, id)
+        .input('priority', sql.NVarChar, priority)
+        .input('deadline', sql.DateTime, deadline)
+        .query('UPDATE requests SET priority = @priority, sla_deadline = @deadline WHERE id = @id');
+
+      await transaction.request()
+        .input('id', sql.Int, id)
+        .input('log', sql.NVarChar, `Priority adjusted to ${priority}. Reason: ${reason}`)
+        .query('INSERT INTO technical_logs (request_id, staff_id, notes) VALUES (@id, NULL, @log)');
+
+      await transaction.commit();
+      res.json({ message: 'Priority adjusted and SLA recalculated' });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -517,7 +568,7 @@ app.get('/api/requests/:id/logs', async (req, res) => {
     const pool = await sql.connect({ ...config, database: 'srms_db' });
     const result = await pool.request()
       .input('id', sql.Int, id)
-      .query('SELECT l.*, u.name as staff_name FROM technical_logs l JOIN users u ON l.staff_id = u.id WHERE l.request_id = @id ORDER BY l.created_at DESC');
+      .query('SELECT l.*, u.name as staff_name FROM technical_logs l LEFT JOIN users u ON l.staff_id = u.id WHERE l.request_id = @id ORDER BY l.created_at DESC');
     res.json(result.recordset);
   } catch (err) {
     res.status(500).json({ error: err.message });
