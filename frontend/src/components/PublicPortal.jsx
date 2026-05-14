@@ -21,6 +21,8 @@ const PublicPortal = ({ type }) => {
   const [selectedReq, setSelectedReq] = useState(null);
   const [showDiscussion, setShowDiscussion] = useState(false);
   const [reminders, setReminders] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 4;
   const [alertAudio] = useState(new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3')); 
   alertAudio.loop = true;
 
@@ -147,98 +149,132 @@ const PublicPortal = ({ type }) => {
 
             <div className="flex-1 overflow-hidden relative">
               <div className="absolute inset-0 flex flex-col gap-6 marquee-vertical">
-                {/* Duplicate the list for seamless looping */}
-                {[...activeRequests, ...activeRequests].map((req, idx) => (
-                  <motion.div
-                    layout
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ 
-                      opacity: 1, 
-                      y: 0,
-                      scale: req.is_nudged ? [1, 1.03, 1] : 1,
-                      backgroundColor: req.is_nudged ? ['rgba(255,255,255,0.02)', 'rgba(234,179,8,0.05)', 'rgba(255,255,255,0.02)'] : 'rgba(255,255,255,0.02)'
-                    }}
-                    transition={{
-                      scale: req.is_nudged ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" } : {},
-                      backgroundColor: req.is_nudged ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" } : {}
-                    }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    key={`${req.id}-${idx}`}
-                    onClick={() => {
-                      setSelectedReq(req);
-                      setShowDiscussion(true);
-                      if (req.is_nudged) {
-                        resetFollowUp(req.id);
-                      }
-                    }}
-                    className={`glass-card p-10 min-h-[160px] border-l-8 ${themeBorder} bg-white/[0.02] flex flex-col justify-center group hover:bg-white/[0.05] cursor-pointer transition-all shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative overflow-hidden ${req.is_nudged ? 'border-yellow-500/50' : ''}`}
-                  >
-                    {/* Follow Up Bell */}
-                    {req.is_nudged && (
-                      <div className="absolute top-4 right-4 flex items-center gap-2 bg-yellow-500/20 px-3 py-1 rounded-full border border-yellow-500/30 animate-pulse">
-                        <BellAlertIcon className="w-4 h-4 text-yellow-500" />
-                        <span className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">Following Up</span>
-                      </div>
-                    )}
+                {(() => {
+                  const totalPages = Math.ceil(activeRequests.length / itemsPerPage);
+                  const paginated = activeRequests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-                    {/* Background Status Stamp */}
-                    <div className={`absolute right-[10%] top-1/2 -translate-y-1/2 pointer-events-none opacity-[0.05] text-8xl font-black uppercase tracking-[0.2em] transition-all group-hover:opacity-[0.15] group-hover:scale-110 ${
-                      req.status === 'Completed' ? 'text-green-500' :
-                      req.status === 'Rejected' ? 'text-red-500' :
-                      req.status === 'Pending Review' ? 'text-yellow-500' :
-                      type === 'IT' ? 'text-it-cyan' : 'text-eng-orange'
-                    }`}>
-                      {req.status}
-                    </div>
+                  return (
+                    <>
+                      {paginated.map((req, idx) => (
+                        <motion.div
+                          layout
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ 
+                            opacity: 1, 
+                            scale: req.is_nudged ? [1, 1.02, 1] : 1,
+                            backgroundColor: req.is_nudged ? ['rgba(255,255,255,0.02)', 'rgba(234,179,8,0.05)', 'rgba(255,255,255,0.02)'] : 'rgba(255,255,255,0.02)'
+                          }}
+                          transition={{
+                            scale: req.is_nudged ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 },
+                            backgroundColor: req.is_nudged ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" } : {}
+                          }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          key={req.id}
+                          onClick={() => {
+                            setSelectedReq(req);
+                            setShowDiscussion(true);
+                            if (req.is_nudged) {
+                              resetFollowUp(req.id);
+                            }
+                          }}
+                          className={`glass-card p-10 min-h-[160px] border-l-8 ${themeBorder} bg-white/[0.02] flex flex-col justify-center group hover:bg-white/[0.05] cursor-pointer transition-all shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative overflow-hidden ${req.is_nudged ? 'border-yellow-500/50' : ''}`}
+                        >
+                          {/* Follow Up Bell */}
+                          {req.is_nudged && (
+                            <div className="absolute top-4 right-4 flex items-center gap-2 bg-yellow-500/20 px-3 py-1 rounded-full border border-yellow-500/30 animate-pulse">
+                              <BellAlertIcon className="w-4 h-4 text-yellow-500" />
+                              <span className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">Following Up</span>
+                            </div>
+                          )}
 
-                    <div className="flex-1 relative z-10">
-                      <div className="flex items-center gap-4 mb-4">
-                        <span className={`text-sm font-mono ${themeColor} bg-white/5 px-4 py-1.5 rounded-xl uppercase tracking-[0.2em] font-bold border border-white/5`}>{req.tracking_no}</span>
-                        <div className="flex items-center gap-2 text-xs text-white/30 uppercase font-black tracking-widest bg-white/[0.02] px-3 py-1.5 rounded-xl border border-white/5">
-                          <MapPinIcon className="w-4 h-4" />
-                          {req.location}
+                          {/* Background Status Stamp */}
+                          <div className={`absolute right-[10%] top-1/2 -translate-y-1/2 pointer-events-none opacity-[0.05] text-8xl font-black uppercase tracking-[0.2em] transition-all group-hover:opacity-[0.15] group-hover:scale-110 ${
+                            req.status === 'Completed' ? 'text-green-500' :
+                            req.status === 'Rejected' ? 'text-red-500' :
+                            req.status === 'Pending Review' ? 'text-yellow-500' :
+                            type === 'IT' ? 'text-it-cyan' : 'text-eng-orange'
+                          }`}>
+                            {req.status}
+                          </div>
+
+                          <div className="flex-1 relative z-10">
+                            <div className="flex items-center gap-4 mb-4">
+                              <span className={`text-sm font-mono ${themeColor} bg-white/5 px-4 py-1.5 rounded-xl uppercase tracking-[0.2em] font-bold border border-white/5`}>{req.tracking_no}</span>
+                              <div className="flex items-center gap-2 text-xs text-white/30 uppercase font-black tracking-widest bg-white/[0.02] px-3 py-1.5 rounded-xl border border-white/5">
+                                <MapPinIcon className="w-4 h-4" />
+                                {req.location}
+                              </div>
+                            </div>
+                            <h3 className="text-4xl font-black italic uppercase tracking-tighter text-white group-hover:text-it-cyan transition-colors">{req.title}</h3>
+                            <div className="flex items-center gap-6 mt-6">
+                               <div className="flex items-center gap-2 text-white/20">
+                                  <ClockIcon className="w-4 h-4" />
+                                  <span className="text-[10px] font-bold uppercase tracking-widest">Log: {new Date(req.created_at).toLocaleTimeString()}</span>
+                               </div>
+                            </div>
+                          </div>
+                          
+                          <div className="absolute right-10 bottom-10 flex flex-col items-end gap-4 z-10">
+                            <div className="text-right space-y-1 opacity-20 group-hover:opacity-100 transition-opacity max-w-[200px]">
+                              <p className="text-[8px] uppercase tracking-[0.3em] font-black text-white/40">Authorized Personnel</p>
+                              <div className={`text-lg font-black ${themeColor} uppercase italic tracking-tighter truncate`}>
+                                {req.assigned_names || 'Awaiting Dispatch'}
+                              </div>
+                            </div>
+                            
+                            <div className="transform transition-transform group-hover:scale-110 duration-500">
+                              {req.priority === 'Urgent' ? (
+                                 <div className="px-8 py-3 bg-red-600 text-white text-xs font-black uppercase tracking-[0.3em] rounded-xl animate-pulse shadow-[0_0_40px_rgba(220,38,38,0.6)] border-2 border-red-400/50">
+                                   Urgent Priority
+                                 </div>
+                              ) : req.priority === 'High' ? (
+                                 <div className="px-8 py-3 bg-purple-600 text-white text-xs font-black uppercase tracking-[0.3em] rounded-xl shadow-[0_0_30px_rgba(147,51,234,0.4)] border-2 border-purple-400/50">
+                                   High Priority
+                                 </div>
+                              ) : req.priority === 'Medium' ? (
+                                 <div className="px-8 py-3 bg-green-600 text-white text-xs font-black uppercase tracking-[0.3em] rounded-xl shadow-[0_0_30px_rgba(22,163,74,0.4)] border-2 border-green-400/50">
+                                   Medium Priority
+                                 </div>
+                              ) : (
+                                 <div className="px-8 py-3 bg-white/5 text-white/40 text-xs font-black uppercase tracking-[0.3em] rounded-xl border-2 border-white/10">
+                                   {req.priority || 'Low'} Priority
+                                 </div>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+
+                      {/* Pagination Controls */}
+                      {totalPages > 1 && (
+                        <div className="flex justify-between items-center bg-black/20 p-6 rounded-[2.5rem] border border-white/5 mt-4">
+                          <div className="flex items-center gap-4">
+                            <button 
+                              disabled={currentPage === 1}
+                              onClick={() => setCurrentPage(p => p - 1)}
+                              className="w-12 h-12 rounded-2xl flex items-center justify-center bg-white/5 text-white/40 hover:bg-white/10 hover:text-white transition-all disabled:opacity-10 border border-white/10"
+                            >
+                              <ChevronRightIcon className="w-6 h-6 rotate-180" />
+                            </button>
+                            <button 
+                              disabled={currentPage === totalPages}
+                              onClick={() => setCurrentPage(p => p + 1)}
+                              className="w-12 h-12 rounded-2xl flex items-center justify-center bg-white/5 text-white/40 hover:bg-white/10 hover:text-white transition-all disabled:opacity-10 border border-white/10"
+                            >
+                              <ChevronRightIcon className="w-6 h-6" />
+                            </button>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] uppercase tracking-[0.4em] font-black text-white/20 mb-1">Navigation Console</p>
+                            <p className="text-xl font-black italic text-white uppercase tracking-tighter">
+                              Page <span className={themeColor}>{currentPage}</span> / {totalPages}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <h3 className="text-4xl font-black italic uppercase tracking-tighter text-white group-hover:text-it-cyan transition-colors">{req.title}</h3>
-                      <div className="flex items-center gap-6 mt-6">
-                         <div className="flex items-center gap-2 text-white/20">
-                            <ClockIcon className="w-4 h-4" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest">Log: {new Date(req.created_at).toLocaleTimeString()}</span>
-                         </div>
-                      </div>
-                    </div>
-                    
-                    <div className="absolute right-10 bottom-10 flex flex-col items-end gap-4 z-10">
-                      <div className="text-right space-y-1 opacity-20 group-hover:opacity-100 transition-opacity max-w-[200px]">
-                        <p className="text-[8px] uppercase tracking-[0.3em] font-black text-white/40">Authorized Personnel</p>
-                        <div className={`text-lg font-black ${themeColor} uppercase italic tracking-tighter truncate`}>
-                          {req.assigned_names || 'Awaiting Dispatch'}
-                        </div>
-                      </div>
-                      
-                      {/* High-Fidelity Priority Card */}
-                      <div className="transform transition-transform group-hover:scale-110 duration-500">
-                        {req.priority === 'Urgent' ? (
-                           <div className="px-8 py-3 bg-red-600 text-white text-xs font-black uppercase tracking-[0.3em] rounded-xl animate-pulse shadow-[0_0_40px_rgba(220,38,38,0.6)] border-2 border-red-400/50">
-                             Urgent Priority
-                           </div>
-                        ) : req.priority === 'High' ? (
-                           <div className="px-8 py-3 bg-purple-600 text-white text-xs font-black uppercase tracking-[0.3em] rounded-xl shadow-[0_0_30px_rgba(147,51,234,0.4)] border-2 border-purple-400/50">
-                             High Priority
-                           </div>
-                        ) : req.priority === 'Medium' ? (
-                           <div className="px-8 py-3 bg-green-600 text-white text-xs font-black uppercase tracking-[0.3em] rounded-xl shadow-[0_0_30px_rgba(22,163,74,0.4)] border-2 border-green-400/50">
-                             Medium Priority
-                           </div>
-                        ) : (
-                           <div className="px-8 py-3 bg-white/5 text-white/40 text-xs font-black uppercase tracking-[0.3em] rounded-xl border-2 border-white/10">
-                             {req.priority || 'Low'} Priority
-                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
+                      )}
+                    </>
+                  );
+                })()}
                 {activeRequests.length === 0 && (
                   <div className="h-full flex flex-col items-center justify-center opacity-10 border-4 border-dashed border-white/5 rounded-[4rem]">
                      <ShieldCheckIcon className="w-40 h-40 mb-8" />

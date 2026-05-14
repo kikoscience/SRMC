@@ -239,139 +239,186 @@ const RequesterDashboard = ({ notify }) => {
     { id: 'Closed', label: 'Closed / Finalized', value: requests.filter(r => ['Closed', 'Completed'].includes(r.status)).length, color: 'text-green-400' },
   ];
 
-  return (
-    <>
-      <div className="max-w-6xl mx-auto space-y-8">
-      <div className="no-print">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">Service Portal</h1>
-            <p className="text-white/40 text-sm mt-1">Manage and track your department's service requests</p>
+    <div className="max-w-6xl mx-auto space-y-10 pb-20 no-print">
+      {/* Hero Service Portal Header */}
+      <div className="relative overflow-hidden rounded-[3rem] bg-gradient-to-br from-[#0f172a] to-[#1e293b] p-12 shadow-2xl border border-white/5">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] -mr-48 -mt-48" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] -ml-32 -mb-32" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
+          <div className="flex-1 text-center md:text-left">
+            <h1 className="text-5xl font-black italic uppercase tracking-tighter text-white mb-4">
+              Service <span className="text-blue-400 underline decoration-blue-400/30 underline-offset-8">Portal</span>
+            </h1>
+            <p className="text-white/40 text-lg max-w-xl leading-relaxed">
+              Submit maintenance requests, track technical support progress, and manage your department's operational health in one unified command center.
+            </p>
           </div>
-          <button 
-            onClick={() => setShowForm(true)}
-            className="btn-primary flex items-center gap-2 px-8 py-4 shadow-lg shadow-it-cyan/10"
-          >
-            <PlusIcon className="w-5 h-5" /> New Service Request
-          </button>
-        </div>
-
-        {/* Header Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {stats.map((s) => (
+          <div className="flex gap-4">
             <button 
-              key={s.label} 
-              onClick={() => setFilterStatus(s.id)}
-              className={`glass-card p-6 border-white/5 relative overflow-hidden group text-left transition-all ${
-                filterStatus === s.id ? 'ring-2 ring-it-cyan/50 bg-white/[0.08]' : 'hover:bg-white/5'
-              }`}
+              onClick={() => { setProviderType('IT'); setShowForm(true); }}
+              className="group p-8 rounded-[2.5rem] bg-white/[0.03] border border-white/10 hover:border-it-cyan/50 hover:bg-it-cyan/5 transition-all text-center flex flex-col items-center gap-4 w-40"
             >
-              <div className={`absolute top-0 left-0 w-1 h-full bg-current ${s.color} opacity-20`}></div>
-              <span className="text-white/20 text-[10px] uppercase tracking-[0.2em] font-black mb-3 block">{s.label}</span>
-              <div className="flex items-end gap-2">
-                <span className={`text-4xl font-black ${s.color}`}>{s.value}</span>
+              <div className="w-16 h-16 rounded-2xl bg-it-cyan/10 flex items-center justify-center text-it-cyan group-hover:scale-110 transition-transform shadow-lg shadow-it-cyan/5">
+                <CpuChipIcon className="w-8 h-8" />
               </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 group-hover:text-white transition-colors">IT Support</span>
             </button>
-          ))}
-        </div>
-      
-        {/* Control Bar */}
-        <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-center border-white/5">
-          <div className="relative flex-1 w-full">
-            <input 
-              type="text" 
-              placeholder="Search by Tracking No or Title..." 
-              className="input-field pl-12"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <PlusIcon className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-white/20 rotate-45" />
+            <button 
+              onClick={() => { setProviderType('Engineering'); setShowForm(true); }}
+              className="group p-8 rounded-[2.5rem] bg-white/[0.03] border border-white/10 hover:border-eng-orange/50 hover:bg-eng-orange/5 transition-all text-center flex flex-col items-center gap-4 w-40"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-eng-orange/10 flex items-center justify-center text-eng-orange group-hover:scale-110 transition-transform shadow-lg shadow-eng-orange/5">
+                <WrenchScrewdriverIcon className="w-8 h-8" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 group-hover:text-white transition-colors">Engineering</span>
+            </button>
           </div>
-          <div className="flex gap-2 p-1 bg-white/5 rounded-xl border border-white/5 w-full md:w-auto">
-            {['All', 'IT', 'Engineering'].map(t => (
-              <button
-                key={t}
-                onClick={() => setFilterType(t)}
-                className={`px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
-                  filterType === t ? 'bg-it-cyan text-black shadow-lg shadow-it-cyan/20' : 'text-white/40 hover:text-white'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
         </div>
       </div>
-      
-      <div className="grid gap-4">
-        {filteredRequests.map((req) => (
-          <motion.div 
-            whileHover={{ x: 10 }}
-            key={req.id} 
-            onClick={() => handleSelectRequest(req)}
-            className={`glass-card p-6 cursor-pointer group flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 transition-all hover:bg-white/[0.04] relative overflow-hidden ${
-              req.status === 'Rejected' ? 'border-l-red-500 shadow-[0_10px_30px_rgba(239,68,68,0.1)]' :
-              req.status === 'Completed' ? 'border-l-green-500 shadow-[0_10px_30px_rgba(34,197,94,0.1)]' :
-              'border-l-it-cyan shadow-[0_10px_30px_rgba(0,255,255,0.05)]'
-            }`}
-          >
-            {/* Background Status Stamp */}
-            <div className={`absolute right-1/4 top-1/2 -translate-y-1/2 pointer-events-none opacity-[0.08] text-5xl font-black uppercase tracking-[0.2em] transition-all group-hover:opacity-20 group-hover:scale-110 ${
-              req.status === 'Rejected' ? 'text-red-500' :
-              req.status === 'Completed' ? 'text-green-500' :
-              req.status === 'Pending Review' ? 'text-yellow-500' :
-              'text-it-cyan'
-            }`}>
-              {req.status}
-            </div>
 
-            <div className="flex items-center gap-6 flex-1 relative z-10">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${
-                req.status === 'Rejected' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
-                req.status === 'Completed' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                'bg-it-cyan/10 text-it-cyan border border-it-cyan/20'
-              }`}>
-                {req.status === 'Rejected' ? <XCircleIcon className="w-8 h-8" /> : 
-                 req.status === 'Completed' ? <CheckCircleIcon className="w-8 h-8" /> :
-                 <ClockIcon className="w-8 h-8" />}
-              </div>
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-[10px] font-mono text-it-cyan bg-it-cyan/10 px-2 py-0.5 rounded uppercase tracking-widest">{req.tracking_no}</span>
-                  <span className={`text-[10px] uppercase px-2 py-0.5 rounded font-black tracking-widest ${
-                    req.priority === 'Urgent' ? 'bg-red-500/20 text-red-400 animate-pulse border border-red-500/20' : 
-                    req.priority === 'High' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/20' :
-                    req.priority === 'Medium' ? 'bg-green-500/20 text-green-400 border border-green-500/20' :
-                    'bg-white/5 text-white/40 border border-white/10'
-                  }`}>
-                    {req.priority}
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold uppercase tracking-tight italic">{req.title}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="text-white/20 text-[10px] uppercase tracking-[0.2em] font-bold">
-                    {req.created_at ? new Date(req.created_at).toLocaleDateString() : 'Date TBD'} • {req.location || 'Site TBD'}
-                  </p>
-                  {req.status === 'Rejected' && (
-                    <span className="text-[10px] text-red-400 font-bold uppercase tracking-widest bg-red-400/5 px-2 py-0.5 rounded border border-red-400/10 animate-pulse">Action Required</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="text-right flex items-center gap-4 relative z-10">
-              <span className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-black">Details</span>
-              <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center group-hover:border-it-cyan transition-all group-hover:bg-it-cyan group-hover:text-black">
-                <PlusIcon className="w-5 h-5" />
-              </div>
-            </div>
-          </motion.div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {stats.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setFilterStatus(s.id)}
+            className={`glass-card p-6 text-left border-white/5 relative overflow-hidden group hover:border-white/20 transition-all ${filterStatus === s.id ? 'ring-2 ring-blue-500/50 bg-blue-500/5' : ''}`}
+          >
+            <p className="text-[10px] uppercase tracking-widest text-white/20 font-black mb-1">{s.label}</p>
+            <h4 className={`text-4xl font-black italic ${s.color}`}>{s.value}</h4>
+          </button>
         ))}
-        {filteredRequests.length === 0 && (
-          <div className="glass-card p-20 text-center border-dashed border-white/5">
-            <InformationCircleIcon className="w-12 h-12 text-white/5 mx-auto mb-4" />
-            <p className="text-white/20 uppercase tracking-widest text-sm font-bold">No matching requests found</p>
-            <button onClick={() => {setSearchQuery(''); setFilterType('All');}} className="text-it-cyan text-xs mt-4 hover:underline">Clear all filters</button>
+      </div>
+      
+      <div className="flex flex-col lg:flex-row gap-10 mt-12">
+        <div className="flex-1 space-y-6">
+          <div className="flex items-center justify-between px-4">
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white">Service <span className="text-blue-400">Inventory</span></h2>
+            <div className="relative group">
+               <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-blue-400 transition-colors" />
+               <input 
+                 type="text" 
+                 placeholder="Search tracking no or subject..." 
+                 value={searchQuery}
+                 onChange={(e) => setSearchQuery(e.target.value)}
+                 className="bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 py-3 text-xs text-white focus:border-blue-500/50 outline-none w-80 transition-all focus:bg-white/[0.08]"
+               />
+            </div>
           </div>
-        )}
+      
+          <div className="grid gap-4">
+            {filteredRequests.length === 0 ? (
+              <div className="glass-card p-20 text-center border-dashed border-2 border-white/5 opacity-40">
+                <InformationCircleIcon className="w-16 h-16 mx-auto mb-4 text-white/20" />
+                <p className="uppercase tracking-[0.3em] font-black">No Records Match Query</p>
+                <button onClick={() => {setSearchQuery(''); setFilterType('All');}} className="text-blue-400 text-xs mt-4 hover:underline uppercase tracking-widest font-black">Reset Console</button>
+              </div>
+            ) : (
+              filteredRequests.map((req) => (
+                <motion.div
+                  key={req.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="glass-card group p-8 border-l-4 hover:bg-white/[0.04] transition-all cursor-pointer relative overflow-hidden"
+                  style={{ borderLeftColor: req.provider_type === 'IT' ? '#00f2ff' : '#ff8c00' }}
+                  onClick={() => handleSelectRequest(req)}
+                >
+                  <div className="absolute right-0 top-0 w-32 h-32 bg-white/[0.01] rounded-full -mr-16 -mt-16 group-hover:bg-white/[0.03] transition-colors" />
+                  
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 relative z-10">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-4 mb-3">
+                        <span className="text-[10px] font-mono bg-white/5 text-white/60 px-3 py-1 rounded-lg tracking-widest border border-white/10 uppercase font-black">{req.tracking_no}</span>
+                        <div className="flex items-center gap-1.5">
+                           <div className={`w-1.5 h-1.5 rounded-full ${req.provider_type === 'IT' ? 'bg-it-cyan' : 'bg-eng-orange'}`} />
+                           <span className="text-[10px] uppercase font-black tracking-widest text-white/40">{req.provider_type} DEPT</span>
+                        </div>
+                      </div>
+                      <h3 className="text-2xl font-black italic uppercase tracking-tight text-white mb-4 group-hover:text-blue-400 transition-colors leading-tight">{req.title}</h3>
+                      <div className="flex items-center gap-6 opacity-30 group-hover:opacity-60 transition-opacity">
+                        <div className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest">
+                          <ClockIcon className="w-4 h-4" />
+                          {req.date}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest">
+                          <MapPinIcon className="w-4 h-4" />
+                          {req.location || 'WARD_LOCATION_PENDING'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-8">
+                      <div className="text-right">
+                         <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black mb-2">Protocol Status</p>
+                         <span className={`text-[10px] font-black uppercase italic tracking-widest px-4 py-2 rounded-xl border ${
+                           req.status === 'Completed' ? 'text-green-400 border-green-400/20 bg-green-400/5' :
+                           req.status === 'Rejected' ? 'text-red-400 border-red-400/20 bg-red-400/5' :
+                           'text-blue-400 border-blue-400/20 bg-blue-400/5'
+                         }`}>
+                           {req.status}
+                         </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setPrintReq(req); }}
+                          className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-white/10 text-white/20 hover:text-white rounded-2xl transition-all border border-white/10"
+                        >
+                           <PrinterIcon className="w-5 h-5" />
+                        </button>
+                        <button className="w-12 h-12 flex items-center justify-center bg-white/5 group-hover:bg-blue-500 text-white/20 group-hover:text-black rounded-2xl transition-all border border-white/10 group-hover:border-blue-500 shadow-lg group-hover:shadow-blue-500/20">
+                          <ChevronRightIcon className="w-6 h-6" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="w-full lg:w-80 space-y-6 shrink-0">
+          <div className="glass-card p-8 border-blue-500/20 bg-blue-500/5 relative overflow-hidden group">
+             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                <HandThumbUpIcon className="w-20 h-20 text-blue-500" />
+             </div>
+             <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2 italic">Support Desk</h3>
+             <p className="text-xs text-white/40 leading-relaxed mb-8">
+                Need immediate technical intervention? Our command center technicians are available 24/7.
+             </p>
+             <div className="space-y-4">
+                <div className="flex items-center justify-between p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-it-cyan/30 transition-colors">
+                   <span className="text-[10px] font-black uppercase tracking-widest text-white/20">IT EXTENSION</span>
+                   <span className="text-lg font-mono text-it-cyan font-black">#404</span>
+                </div>
+                <div className="flex items-center justify-between p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-eng-orange/30 transition-colors">
+                   <span className="text-[10px] font-black uppercase tracking-widest text-white/20">ENGINEERING</span>
+                   <span className="text-lg font-mono text-eng-orange font-black">#911</span>
+                </div>
+             </div>
+          </div>
+
+          <div className="glass-card p-8 border-white/5 bg-white/[0.01]">
+             <div className="flex items-center gap-3 mb-6">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
+                   <InformationCircleIcon className="w-5 h-5" />
+                </div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-white italic">Filing Guide</h3>
+             </div>
+             <ul className="space-y-5">
+                {[
+                  { t: 'Clarity', t_col: 'text-blue-400', d: 'Include photos for faster diagnosis' },
+                  { t: 'Precision', t_col: 'text-it-cyan', d: 'Specify exact ward/room number' },
+                  { t: 'Efficiency', t_col: 'text-eng-orange', d: 'Check for duplicates before filing' }
+                ].map((tip, i) => (
+                  <li key={i} className="space-y-1">
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${tip.t_col}`}>{tip.t}</p>
+                    <p className="text-xs text-white/30 leading-relaxed">{tip.d}</p>
+                  </li>
+                ))}
+             </ul>
+          </div>
+        </div>
       </div>
 
       {/* Mock Modal for Form */}
