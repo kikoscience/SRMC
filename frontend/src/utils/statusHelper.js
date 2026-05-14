@@ -52,6 +52,7 @@ export const getStatusColor = (status, type) => {
     case 'Pending Review': return 'text-yellow-500';
     case 'Accepted': return type === 'IT' ? 'text-it-cyan' : 'text-eng-orange';
     case 'Assigned': return type === 'IT' ? 'text-it-cyan' : 'text-eng-orange';
+    case 'Disputed': return 'text-red-500 animate-pulse';
     default: return 'text-white/40';
   }
 };

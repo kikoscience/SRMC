@@ -16,6 +16,7 @@ import ProviderDashboard from './components/ProviderDashboard';
 import StaffDashboard from './components/StaffDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import PublicPortal from './components/PublicPortal';
+import PrintableRequest from './components/PrintableRequest';
 
 const App = () => {
   const [role, setRole] = useState(null);
@@ -23,6 +24,7 @@ const App = () => {
   const [staffList, setStaffList] = useState([]);
   const [showStaffSelector, setShowStaffSelector] = useState(false);
   const [currentStaff, setCurrentStaff] = useState(null);
+  const [printContext, setPrintContext] = useState(null); // { request, logs, parts }
 
   React.useEffect(() => {
     const host = window.location.hostname || 'localhost';
@@ -97,7 +99,7 @@ const App = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="w-full max-w-4xl"
+            className="w-full max-w-4xl no-print"
           >
             <div className="text-center mb-12">
               <h1 className="text-5xl md:text-6xl mb-4 bg-gradient-to-r from-white to-white/50 bg-clip-text text-transparent uppercase tracking-tight font-black">
@@ -162,7 +164,7 @@ const App = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="w-full min-h-screen"
+            className="w-full min-h-screen no-print"
           >
             {(role === 'it_portal' || role === 'eng_portal') ? (
               <PublicPortal type={role === 'it_portal' ? 'IT' : 'Engineering'} />
@@ -199,13 +201,50 @@ const App = () => {
                 </nav>
 
                 <main className="px-6">
-                  {role === 'requester' && <RequesterDashboard notify={notify} />}
-                  {role === 'provider' && <ProviderDashboard type={providerType} notify={notify} />}
-                  {role === 'staff' && <StaffDashboard user={currentStaff} notify={notify} />}
-                  {role === 'admin' && <AdminDashboard notify={notify} />}
+                  {role === 'requester' && <RequesterDashboard notify={notify} onPrint={(data) => setPrintContext(data)} />}
+                  {role === 'provider' && <ProviderDashboard type={providerType} notify={notify} onPrint={(data) => setPrintContext(data)} />}
+                  {role === 'staff' && <StaffDashboard user={currentStaff} notify={notify} onPrint={(data) => setPrintContext(data)} />}
+                  {role === 'admin' && <AdminDashboard notify={notify} onPrint={(data) => setPrintContext(data)} />}
                 </main>
               </>
             )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Universal Print Mode Overlay */}
+      <AnimatePresence>
+        {printContext && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-white overflow-auto flex flex-col items-center hide-scrollbar"
+          >
+            <div className="w-full max-w-[210mm] no-print p-4 flex justify-between items-center bg-gray-100 border-b border-gray-200">
+               <button 
+                 onClick={() => setPrintContext(null)}
+                 className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-black flex items-center gap-2"
+               >
+                  <ArrowLeftOnRectangleIcon className="w-4 h-4 rotate-180" /> Exit Print View
+               </button>
+               <div className="flex gap-2">
+                  <button 
+                    onClick={() => window.print()}
+                    className="px-6 py-2 bg-black text-white text-xs font-bold uppercase tracking-widest rounded-lg hover:bg-gray-800 transition-all shadow-lg"
+                  >
+                     Confirm Print
+                  </button>
+               </div>
+            </div>
+            
+            <div className="p-8">
+               <PrintableRequest 
+                  request={printContext.request}
+                  logs={printContext.logs}
+                  parts={printContext.parts}
+               />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

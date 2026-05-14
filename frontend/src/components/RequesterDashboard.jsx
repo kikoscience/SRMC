@@ -11,14 +11,17 @@ import {
   StarIcon,
   ChatBubbleLeftEllipsisIcon,
   InformationCircleIcon,
-  PrinterIcon
+  PrinterIcon,
+  MagnifyingGlassIcon,
+  MapPinIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import { HandThumbUpIcon } from '@heroicons/react/24/solid';
 import { motion, AnimatePresence } from 'framer-motion';
 import CommentSection from './CommentSection';
 import PrintableRequest from './PrintableRequest';
 
-const RequesterDashboard = ({ notify }) => {
+const RequesterDashboard = ({ notify, onPrint }) => {
   const [showForm, setShowForm] = useState(false);
   const [providerType, setProviderType] = useState('IT');
   const [priority, setPriority] = useState('Medium');
@@ -151,11 +154,11 @@ const RequesterDashboard = ({ notify }) => {
         })
       });
 
-      // 2. Move status back to Assigned
+      // 2. Move status to Disputed
       await fetch(`http://${host}:5001/api/requests/${selectedRequest.id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'Assigned' })
+        body: JSON.stringify({ status: 'Disputed' })
       });
       // 3. Move workflow back to Step 3 (Resolution)
       await fetch(`http://${host}:5001/api/requests/${selectedRequest.id}/step`, {
@@ -321,10 +324,15 @@ const RequesterDashboard = ({ notify }) => {
                   key={req.id}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="glass-card group p-8 border-l-4 hover:bg-white/[0.04] transition-all cursor-pointer relative overflow-hidden"
-                  style={{ borderLeftColor: req.provider_type === 'IT' ? '#00f2ff' : '#ff8c00' }}
+                  className={`glass-card group p-8 border-l-4 hover:bg-white/[0.04] transition-all cursor-pointer relative overflow-hidden ${
+                    req.status === 'Disputed' ? 'animate-pulse shadow-[0_0_40px_rgba(239,68,68,0.4)] border-red-500 bg-red-500/5' : ''
+                  }`}
+                  style={{ borderLeftColor: req.status === 'Disputed' ? '#ef4444' : (req.provider_type === 'IT' ? '#00f2ff' : '#ff8c00') }}
                   onClick={() => handleSelectRequest(req)}
                 >
+                  {req.status === 'Disputed' && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-transparent pointer-events-none" />
+                  )}
                   <div className="absolute right-0 top-0 w-32 h-32 bg-white/[0.01] rounded-full -mr-16 -mt-16 group-hover:bg-white/[0.03] transition-colors" />
                   
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 relative z-10">
@@ -355,6 +363,7 @@ const RequesterDashboard = ({ notify }) => {
                          <span className={`text-[10px] font-black uppercase italic tracking-widest px-4 py-2 rounded-xl border ${
                            req.status === 'Completed' ? 'text-green-400 border-green-400/20 bg-green-400/5' :
                            req.status === 'Rejected' ? 'text-red-400 border-red-400/20 bg-red-400/5' :
+                           req.status === 'Disputed' ? 'text-red-500 border-red-500/50 bg-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.3)]' :
                            'text-blue-400 border-blue-400/20 bg-blue-400/5'
                          }`}>
                            {req.status}
@@ -362,7 +371,7 @@ const RequesterDashboard = ({ notify }) => {
                       </div>
                       <div className="flex gap-2">
                         <button 
-                          onClick={(e) => { e.stopPropagation(); setPrintReq(req); }}
+                          onClick={(e) => { e.stopPropagation(); onPrint({ request: req }); }}
                           className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-white/10 text-white/20 hover:text-white rounded-2xl transition-all border border-white/10"
                         >
                            <PrinterIcon className="w-5 h-5" />
@@ -600,7 +609,7 @@ const RequesterDashboard = ({ notify }) => {
                   <HandThumbUpIcon className="w-4 h-4" /> Follow Up
                 </button>
                 <button 
-                  onClick={() => window.print()}
+                  onClick={() => onPrint({ request: selectedRequest, logs: requestLogs, parts: requestParts })}
                   className="px-4 py-2 rounded-lg bg-it-cyan/10 border border-it-cyan/30 text-it-cyan text-[10px] font-black uppercase tracking-widest hover:bg-it-cyan hover:text-black transition-all flex items-center gap-2"
                 >
                   <PrinterIcon className="w-4 h-4" /> Print ISO Form
@@ -884,15 +893,8 @@ const RequesterDashboard = ({ notify }) => {
       )}
       </div>
 
-      <div className="print-only">
-        {selectedRequest && (
-          <PrintableRequest 
-            request={selectedRequest} 
-            logs={requestLogs} 
-            parts={requestParts} 
-          />
-        )}
-      </div>
+
+
     </>
   );
 };

@@ -36,7 +36,7 @@ import CommentSection from './CommentSection';
 import PrintableRequest from './PrintableRequest';
 import { getPriorityStyles, getTimeToBreach, getStatusColor } from '../utils/statusHelper';
 
-const ProviderDashboard = ({ type, notify }) => {
+const ProviderDashboard = ({ type, notify, onPrint }) => {
   const [activeTab, setActiveTab] = useState('review');
   const [selectedReq, setSelectedReq] = useState(null);
   const [techLogs, setTechLogs] = useState([]);
@@ -494,6 +494,7 @@ const ProviderDashboard = ({ type, notify }) => {
           {[
           { id: 'overview', name: 'Overview Dashboard', icon: ChartBarIcon },
           { id: 'master', name: 'Master Operations', icon: CircleStackIcon, count: requests.length },
+          { id: 'disputed', name: 'Disputed Cases', icon: XCircleIcon, count: requests.filter(r => r.status === 'Disputed').length },
           { id: 'review', name: 'Review Desk', icon: CheckBadgeIcon, count: requests.filter(r => r.status === 'Pending Review').length },
           { id: 'dispatch', name: 'Staff Dispatch', icon: UserPlusIcon, count: requests.filter(r => r.status === 'Accepted').length },
           { id: 'rejected', name: 'Rejected Jobs', icon: NoSymbolIcon, count: requests.filter(r => r.status === 'Rejected').length },
@@ -545,7 +546,7 @@ const ProviderDashboard = ({ type, notify }) => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {[
                 { label: 'Pending Review', value: requests.filter(r => r.status === 'Pending Review').length, icon: ClipboardDocumentCheckIcon, color: 'text-yellow-500' },
-                { label: 'Awaiting Dispatch', value: requests.filter(r => r.status === 'Accepted').length, icon: UserPlusIcon, color: 'text-eng-orange' },
+                { label: 'Disputed Cases', value: requests.filter(r => r.status === 'Disputed').length, icon: XCircleIcon, color: 'text-red-500' },
                 { label: 'Active Jobs', value: requests.filter(r => r.status === 'Assigned').length, icon: BoltIcon, color: 'text-it-cyan' },
                 { label: 'Total Completed', value: requests.filter(r => r.status === 'Completed').length, icon: CheckBadgeIcon, color: 'text-green-500' }
               ].map((stat, i) => (
@@ -574,6 +575,56 @@ const ProviderDashboard = ({ type, notify }) => {
                      <div className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Efficiency Rating</div>
                   </div>
                </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'disputed' && (
+          <div className="space-y-6">
+            <div className="glass-card p-6 bg-red-500/10 border-red-500/20 flex items-center gap-4">
+               <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center text-red-500 animate-pulse">
+                  <XCircleIcon className="w-6 h-6" />
+               </div>
+               <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-red-500">Re-intervention Protocol Required</h3>
+                  <p className="text-xs text-white/40">The following requests have been disputed by the requester. Technical reassessment is mandatory.</p>
+               </div>
+            </div>
+            <div className="grid gap-4">
+              {requests.filter(r => r.status === 'Disputed').map((req) => (
+                <motion.div 
+                  key={req.id} 
+                  onClick={() => { setDispatchingReq(req); setActiveTab('job_details'); }}
+                  className="glass-card p-8 border-l-8 border-l-red-500 shadow-[0_0_30px_rgba(239,68,68,0.2)] animate-pulse hover:bg-white/[0.04] transition-all cursor-pointer relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 p-4 opacity-5">
+                    <XCircleIcon className="w-20 h-20 text-red-500" />
+                  </div>
+                  <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-[10px] font-mono text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">DISPUTED_{req.tracking_no}</span>
+                        <span className="text-xs text-white/40 uppercase tracking-widest font-black italic">Awaiting Re-assignment</span>
+                      </div>
+                      <h3 className="text-2xl font-black italic uppercase text-white mb-2">{req.title}</h3>
+                      <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-white/20">
+                        <span>{req.location}</span>
+                        <span>•</span>
+                        <span>{new Date(req.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                       <button className="px-6 py-3 bg-red-500 text-black font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-red-400 transition-colors">Start Re-intervention</button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+              {requests.filter(r => r.status === 'Disputed').length === 0 && (
+                <div className="glass-card p-20 text-center opacity-40 border-dashed border-2 border-white/5">
+                   <CheckCircleIcon className="w-12 h-12 mx-auto mb-4 text-green-500/50" />
+                   <p className="uppercase tracking-[0.3em] font-black">All Disputes Resolved</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -767,7 +818,11 @@ const ProviderDashboard = ({ type, notify }) => {
                       <motion.div 
                         key={req.id} 
                         onClick={() => { setDispatchingReq(req); setActiveTab('job_details'); }}
-                        className="glass-card p-6 cursor-pointer group flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 transition-all hover:bg-white/[0.04] relative overflow-hidden border-l-it-cyan shadow-[0_10px_30px_rgba(0,255,255,0.05)]"
+                        className={`glass-card p-6 cursor-pointer group flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 transition-all hover:bg-white/[0.04] relative overflow-hidden ${
+                          req.status === 'Disputed' 
+                            ? 'border-l-red-500 shadow-[0_0_30px_rgba(239,68,68,0.3)] animate-pulse bg-red-500/5' 
+                            : 'border-l-it-cyan shadow-[0_10px_30px_rgba(0,255,255,0.05)]'
+                        }`}
                       >
                         <div className="flex-1 space-y-3">
                           <div className="flex items-center gap-3">
@@ -819,6 +874,7 @@ const ProviderDashboard = ({ type, notify }) => {
                     <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${
                       dispatchingReq.status === 'Completed' ? 'border-green-500 text-green-400 bg-green-500/10' :
                       dispatchingReq.status === 'Rejected' ? 'border-red-500 text-red-500 bg-red-500/10' :
+                      dispatchingReq.status === 'Disputed' ? 'border-red-500 text-red-500 bg-red-500/20 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' :
                       'border-it-cyan text-it-cyan bg-it-cyan/10'
                     }`}>
                       {dispatchingReq.status}
@@ -837,7 +893,7 @@ const ProviderDashboard = ({ type, notify }) => {
                 </div>
                 <div className="flex gap-2">
                   <button 
-                    onClick={() => handlePrint(dispatchingReq)}
+                    onClick={() => onPrint({ request: dispatchingReq, logs: techLogs, parts: techParts })}
                     className="px-4 py-4 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-it-cyan hover:border-it-cyan/30 transition-all flex items-center gap-2"
                     title="Print ISO Form"
                   >
@@ -853,8 +909,46 @@ const ProviderDashboard = ({ type, notify }) => {
                       <UserPlusIcon className="w-5 h-5" /> Assign Technical Staff
                     </button>
                   )}
+                  {dispatchingReq.status === 'Disputed' && (
+                    <button 
+                      onClick={() => setShowDispatchModal(true)}
+                      className="px-8 py-4 bg-red-500 text-black font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-red-400 transition-colors flex items-center gap-2 shadow-lg shadow-red-500/20"
+                    >
+                       <UserPlusIcon className="w-5 h-5" /> Re-assign Team
+                    </button>
+                  )}
                 </div>
               </div>
+              
+              {dispatchingReq.status === 'Disputed' && (
+                <div className="bg-red-500/10 border-y border-red-500/20 p-6 flex items-center justify-between gap-6">
+                   <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500">
+                         <XCircleIcon className="w-6 h-6" />
+                      </div>
+                      <div>
+                         <h4 className="text-xs font-black uppercase tracking-widest text-red-500">Dispute Alert</h4>
+                         <p className="text-[10px] text-white/40">Requester has contested the previous resolution. Full re-diagnostics required.</p>
+                      </div>
+                   </div>
+                   <button 
+                     onClick={async () => {
+                        const host = window.location.hostname || 'localhost';
+                        await fetch(`http://${host}:5001/api/requests/${dispatchingReq.id}/step`, {
+                           method: 'PUT',
+                           headers: { 'Content-Type': 'application/json' },
+                           body: JSON.stringify({ step: 1, notes: 'RE-INTERVENTION STARTED: Workflow reset to Diagnostics.' })
+                        });
+                        fetchRequests();
+                        fetchTechDetails(dispatchingReq.id);
+                        notify('Workflow Reset to Step 1', 'error');
+                     }}
+                     className="px-4 py-2 border border-red-500/50 text-red-500 text-[8px] font-black uppercase tracking-widest rounded-lg hover:bg-red-500 hover:text-black transition-all"
+                   >
+                      Reset Workflow
+                   </button>
+                </div>
+              )}
               
               <div className="grid grid-cols-12">
                 {/* Left: Technical Progress */}
